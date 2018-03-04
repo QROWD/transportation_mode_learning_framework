@@ -1,0 +1,46 @@
+buildscript {
+    ext {
+        kotlin_version = '1.2.21'
+        scala_binary_version = '2.11'
+        scala_version = "$scala_binary_version.12"
+        dllearner_version = '1.3.1-SNAPSHOT'
+    }
+
+
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    }
+}
+
+group 'eu.qrowd-project'
+version '0.1.0-SNAPSHOT'
+
+apply plugin: 'java'
+apply plugin: 'kotlin'
+apply plugin: 'scala'
+
+sourceCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+    maven { url 'http://maven.aksw.org/repository/snapshots' }
+    maven { url 'http://maven.aksw.org/repository/internal' }
+}
+
+dependencies {
+    // Kotlin
+    compile "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+
+    // Scala
+    compile "org.scala-lang:scala-library:$scala_version"
+    testCompile 'org.scalatest:scalatest_2.11:3.0.0'
+
+    // DL-Learner
+    compile ("org.dllearner:components-core:$dllearner_version")
+
+    // JUnit
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+}
