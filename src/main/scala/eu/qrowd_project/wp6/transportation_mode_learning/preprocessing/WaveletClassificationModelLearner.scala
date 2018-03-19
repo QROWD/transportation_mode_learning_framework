@@ -1,22 +1,23 @@
-package eu.qrowd_project.wp6.transportation_mode_learning
+package eu.qrowd_project.wp6.transportation_mode_learning.preprocessing
 
-import scala.util.Random
-
-import eu.qrowd_project.wp6.transportation_mode_learning.preprocessing.FrequencyConverter
-import eu.qrowd_project.wp6.transportation_mode_learning.util.WaveletUDAF
-import org.apache.log4j.{Level, LogManager, Logger}
+import org.apache.log4j.{Level, Logger}
 import org.apache.spark.ml.Pipeline
 import org.apache.spark.ml.classification._
 import org.apache.spark.ml.evaluation.MulticlassClassificationEvaluator
-import org.apache.spark.ml.linalg.{SQLDataTypes, Vector, Vectors}
 import org.apache.spark.ml.tuning.{CrossValidator, ParamGridBuilder}
-import org.apache.spark.sql.functions.col
-import org.apache.spark.sql.{Dataset, Row, SparkSession}
-import org.apache.spark.sql.expressions._
-import org.apache.spark.sql.functions.{col, udf, _}
-import org.apache.spark.sql.types.{DataTypes, DoubleType, StructType}
+import org.apache.spark.sql.SparkSession
 
-object App {
+/**
+  * Used to learn a model that classifies wavelet data.
+  *
+  * Currently, we do
+  * - use a MLP network
+  * - take data of form [features: Vector, label: Double]
+  * - split the input data into train and test data (e.g. 80/20)
+  * - perform k-fold cross validation on the training data
+  * - test predication accuracy on the test data
+  */
+object WaveletClassificationModelLearner {
 
   def main(args: Array[String]): Unit = {
 
@@ -69,8 +70,6 @@ object App {
       .setBlockSize(128)
       .setSeed(1234L)
       .setMaxIter(400)
-
-    val tensor  = Tensor
 
     // Chain indexers and tree in a Pipeline.
     val pipeline = new Pipeline()
