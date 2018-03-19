@@ -1,0 +1,108 @@
+buildscript {
+    ext {
+        kotlin_version = '1.2.30'
+        scala_binary_version = '2.11'
+        scala_version = "$scala_binary_version.12"
+        dllearner_version = '1.3.1-SNAPSHOT'
+    }
+
+
+    repositories {
+        mavenCentral()
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
+    }
+    dependencies {
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath "com.github.jengelman.gradle.plugins:shadow:2.0.2"
+    }
+}
+
+group 'eu.qrowd-project'
+version '0.1.0-SNAPSHOT'
+
+apply plugin: 'java'
+apply plugin: 'kotlin'
+apply plugin: 'scala'
+apply plugin: 'idea'
+apply plugin: 'com.github.johnrengelman.shadow'
+
+sourceCompatibility = 1.8
+
+repositories {
+
+    mavenCentral()
+    maven { url 'http://maven.aksw.org/repository/snapshots' }
+    maven { url 'http://maven.aksw.org/repository/internal' }
+    maven { url 'http://dev.davidsoergel.com/nexus/content/repositories/releases'}
+    maven { url 'http://davidsoergel.com/nexus/content/repositories/thirdparty'}
+    maven { url 'https://oss.sonatype.org/content/repositories/snapshots'}
+    mavenLocal()
+}
+
+
+dependencies {
+    // Kotlin
+    compile "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+
+    // Scala
+    compile "org.scala-lang:scala-library:$scala_version"
+    testCompile 'org.scalatest:scalatest_2.11:3.0.0'
+
+    // DL-Learner
+    compile ("org.dllearner:components-core:$dllearner_version")
+
+    // JUnit
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+
+    // Barefoot Map Matching API
+    compile 'com.bmw-carit:barefoot:0.1.4'
+
+    // Shapeless
+    compile 'com.chuusai:shapeless_2.11:2.3.3'
+
+    // Spark
+    compile 'org.apache.spark:spark-mllib_2.11:2.3.0'
+
+    compile ("com.fasterxml.jackson.core:jackson-core:2.8.7"){force = true}
+    compile ("com.fasterxml.jackson.core:jackson-databind:2.8.7"){force = true}
+    compile ("com.fasterxml.jackson.module:jackson-module-scala_2.11:2.8.7"){force = true}
+
+    compile "de.sciss:jwave:1.0.0-180222"
+
+    compile 'com.github.scopt:scopt_2.11:3.7.0'
+
+    compile 'org.platanios:tensorflow_2.11:0.1.2-SNAPSHOT'
+    compile 'org.platanios:tensorflow-data_2.11:0.1.2-SNAPSHOT'
+
+    compile 'com.typesafe.scala-logging:scala-logging_2.11:3.8.0'
+    compile 'ch.qos.logback:logback-classic:1.2.3'
+
+
+}
+
+tasks.withType(ScalaCompile) {
+
+//    configure(options.compilerArgs) {
+//        '-Xmax-classfile-name:128'
+//    }
+//    options.compilerArgs = ["-Xmax-classfile-name=128"]
+//    scalaCompileOptions.additionalParameters = ["-Xmax-classfile-name:128"]
+}
+
+//compileScala {
+//    // Enable Java warnings output
+//    options.compilerArgs << "-Xmax-classfile-name:128"
+//}
+
+
+idea {
+    module {
+        // if you hate browsing Javadoc
+        downloadJavadoc = false
+
+        // and love reading sources :)
+        downloadSources = true
+    }
+}
