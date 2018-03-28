@@ -1,6 +1,7 @@
 package eu.qrowd_project.wp6.transportation_mode_learning.mapmatching
 
-import org.json.JSONObject
+import javax.json.JsonObject
+
 
 /**
   * An experimental class to analyze the Barefoot map matching framework. (the Docker service must be running, see the
@@ -8,7 +9,7 @@ import org.json.JSONObject
   *
   * @author Lorenz Buehmann
   */
-trait BarefootMapMatchingService extends MapMatchingService[String, JSONObject]{
+trait BarefootMapMatchingService extends MapMatchingService[String, Option[JsonObject]]{
 
   /**
     * Takes a bunch of location points as input and returns a GeoJSON object which denotes the matching path in the map
@@ -22,6 +23,6 @@ trait BarefootMapMatchingService extends MapMatchingService[String, JSONObject]{
     * @param input the input data
     * @return the matching GeoJSON object
     */
-  def query(input: String): JSONObject
+  def query(input: String): Option[JsonObject]
 
 }

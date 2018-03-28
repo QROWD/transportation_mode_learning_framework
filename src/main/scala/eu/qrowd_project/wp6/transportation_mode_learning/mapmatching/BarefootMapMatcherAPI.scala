@@ -1,6 +1,6 @@
 package eu.qrowd_project.wp6.transportation_mode_learning.mapmatching
 
-import java.io.{File, FileOutputStream}
+import java.io.{ByteArrayInputStream, File, FileOutputStream}
 import java.util.Properties
 
 import scala.collection.JavaConversions._
@@ -11,7 +11,8 @@ import com.bmwcarit.barefoot.road.BfmapReader
 import com.bmwcarit.barefoot.roadmap._
 import com.bmwcarit.barefoot.spatial.Geography
 import com.bmwcarit.barefoot.topology.Dijkstra
-import org.json.{JSONArray, JSONObject}
+import javax.json.{Json, JsonObject}
+import org.json.JSONArray
 
 /**
   * @author Lorenz Buehmann
@@ -31,7 +32,7 @@ class BarefootMapMatcherAPI extends BarefootMapMatchingService {
   val matcher = new Matcher(map, new Dijkstra[Road, RoadPoint], new TimePriority, new Geography)
 
 
-  override def query(input: String): JSONObject = {
+  override def query(input: String): Option[JsonObject] = {
     // convert input JSON to sample objects
     val samples = convert(input)
 
@@ -50,7 +51,7 @@ class BarefootMapMatcherAPI extends BarefootMapMatchingService {
     }
 
     println(state.toSlimJSON)
-    state.toGeoJSON
+    Some(Json.createReader(new ByteArrayInputStream(state.toGeoJSON.toString.getBytes())).readObject())
   }
 
   /**
