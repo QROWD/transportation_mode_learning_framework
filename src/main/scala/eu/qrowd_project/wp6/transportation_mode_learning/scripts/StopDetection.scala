@@ -16,7 +16,7 @@ import eu.qrowd_project.wp6.transportation_mode_learning.util.TrackPoint
   *
   * @author Lorenz Buehmann
   */
-class StopDetection(val ceps: Double = 0.5, val eps: Double = 0.1, val minPts: Int = 40) {
+class StopDetection(val ceps: Double = 0.3, val eps: Double = 0.1, val minPts: Int = 80) {
 
   val clusterer = new TDBSCAN(ceps, eps, minPts)
 
@@ -28,8 +28,8 @@ class StopDetection(val ceps: Double = 0.5, val eps: Double = 0.1, val minPts: I
     */
   def find(points: Seq[TrackPoint]): Seq[Seq[TrackPoint]] = {
     import scala.collection.JavaConverters._
-    println("ST-DBSCAN:" + new STDBSCAN(eps, 60, minPts).cluster(points.asJava).asScala.map(c => c.getPoints).mkString("\n"))
-    clusterer.cluster(points)
+//    println("ST-DBSCAN:" + new STDBSCAN(eps, 60, minPts).cluster(points.asJava).asScala.map(c => c.getPoints).mkString("\n"))
+    clusterer.cluster(points).filter(_.size >= minPts)
   }
 
   def main(args: Array[String]): Unit = {

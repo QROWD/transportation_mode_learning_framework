@@ -12,17 +12,12 @@ import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 
 import com.google.common.base.Splitter
-import eu.qrowd_project.wp6.transportation_mode_learning.preprocessing.TDBSCAN
-import eu.qrowd_project.wp6.transportation_mode_learning.util.{HaversineDistance, Point, TrackPoint}
-import io.eels.Row
+import eu.qrowd_project.wp6.transportation_mode_learning.util._
 import io.eels.component.parquet.ParquetSource
-import javax.json.stream.JsonGenerator
-import javax.json.{Json, JsonArray, JsonObject}
+import javax.json.{Json, JsonArray}
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.FileSystem
-import org.apache.log4j.{Level, Logger}
 import org.apache.spark.ml.linalg.Vectors
-import org.apache.spark.sql.functions._
 //import org.apache.spark.sql.{Row, SparkSession}
 
 /**
@@ -80,9 +75,9 @@ object LocationDataAnalyzer {
 //    })
 //
 //    // write to GeoJSON file
-//    visualizeGeoData(entries, "location_points.json")
-//    entriesPerDay.foreach(e => visualizeGeoData(e._2, s"location_points_${e._1.format(dateFormatter)}.json"))
-//    entriesPerDay.foreach(e => visualizeGeoData(e._2, s"locations_line_${e._1.format(dateFormatter)}.json", linestring = true))
+//    GeoJSONExporter.export(entries, "points", "location_points.json")
+//    entriesPerDay.foreach(e =>  GeoJSONExporter.export(e._2, "points",  s"location_points_${e._1.format(dateFormatter)}.json"))
+//    entriesPerDay.foreach(e =>  GeoJSONExporter.export(e._2, "linestring",  s"locations_line_${e._1.format(dateFormatter)}.json"))
 
     // clustered GPS data per day
     val stopDetector = new StopDetection(0.5, 0.1, 40)
@@ -92,9 +87,34 @@ object LocationDataAnalyzer {
 ////      Files.newBufferedWriter(Paths.get("/tmp/clusters/"))
 //      println(s"day ${e._1}:\n ${clusters.asScala.map(_.getPoints.asScala.mkString("||")).mkString("\n")}")
 
-      val stops = stopDetector.find(points)
-      visualizeGeoData(stops.flatten, s"stop_cluster_points_${e._1.format(dateFormatter)}.json")
-      println(stops.zipWithIndex.mkString("\n"))
+      val stopClusters = stopDetector.find(points)
+
+      val colors = GeoJSONConverter.colors(stopClusters.size)
+
+      // map to single JSON object with separate color + title for the points of each single cluster
+      val json = stopClusters
+        .zipWithIndex
+        .map {
+          case (cluster, i) => GeoJSONConverter.toGeoJSONPoints(cluster,
+            Map(
+              "title" -> s"cluster $i",
+              "description" -> s"${cluster.head.timestamp} to ${cluster.last.timestamp}",
+              "marker-symbol" -> i.toString,
+              "marker-color" -> s"#${Integer.toHexString(colors(i).getRGB).substring(2)}"))
+        }
+        .foldLeft(GeoJSONConverter.toGeoJSONPoints(Seq())) { (a, b) => GeoJSONConverter.merge(a, b) }
+
+      // write to disk
+      GeoJSONExporter.write(json, s"stop_cluster_points_${e._1.format(dateFormatter)}.json")
+
+//      GeoJSONExporter.export(stopClusters.flatten, "points", s"stop_cluster_points_${e._1.format(dateFormatter)}.json")
+      println(stopClusters.map(s => (s.size, s)).mkString("\n"))
+
+      // merge with linestring and write to disk
+      GeoJSONExporter.write(
+          GeoJSONConverter.merge(json,
+          GeoJSONConverter.convert(stopClusters.flatten, "linestring")),
+        s"lines_with_stop_cluster_points_${e._1.format(dateFormatter)}.json")
 
     })
 
@@ -248,21 +268,6 @@ object LocationDataAnalyzer {
     writer.close()
   }
 
-  def visualizeGeoData(entries: Seq[TrackPoint], path: String, linestring: Boolean = false): Unit = {
-    val config = Map(JsonGenerator.PRETTY_PRINTING -> true)
-    val factory = Json.createWriterFactory(config.asJava)
-
-    val json = if(linestring) {
-      toGeoJSONLineString(entries)
-    } else {
-      toGeoJSON(entries)
-    }
-
-    val jsonWriter = factory.createWriter(new BufferedWriter(new FileWriter(jsonDir.resolve(path).toString)))
-    jsonWriter.writeObject(json)
-    jsonWriter.close()
-  }
-
   private def toBarefootJSON(entries: Seq[TrackPoint]): JsonArray = {
     val features = Json.createArrayBuilder()
 
@@ -279,45 +284,7 @@ object LocationDataAnalyzer {
     features.build()
   }
 
-  private def toGeoJSON(entries: Seq[TrackPoint]): JsonObject = {
-    val features = Json.createArrayBuilder()
 
-    val concisePoints = entries.head :: entries.sliding(2).collect { case Seq(a,b) if a != b => b }.toList
-
-    concisePoints.zipWithIndex.foreach{
-      case(p, i) =>
-        features.add(i, Json.createObjectBuilder()
-          .add("type", "Feature")
-          .add("geometry", Json.createObjectBuilder()
-            .add("type", "Point")
-            .add("coordinates", Json.createArrayBuilder(Seq(p.long, p.lat).asJava)))
-          .add("properties", Json.createObjectBuilder().add("timestamp", p.toString))
-        )
-    }
-
-    Json.createObjectBuilder()
-      .add("type", "FeatureCollection")
-      .add("features", features)
-      .build()
-  }
-
-  private def toGeoJSONLineString(entries: Seq[TrackPoint]): JsonObject = {
-    val concisePoints = entries.head :: entries.sliding(2).collect { case Seq(a,b) if a != b => b }.toList
-
-    val coordinates = Json.createArrayBuilder()
-    concisePoints.zipWithIndex.foreach{
-      case(p, i) => coordinates.add(i, Json.createArrayBuilder(Seq(p.long, p.lat).asJava))
-    }
-
-    Json.createObjectBuilder()
-        .add("type", "Feature")
-        .add("geometry", Json.createObjectBuilder()
-          .add("type", "LineString")
-          .add("coordinates", coordinates)
-        )
-        .add("properties", Json.createObjectBuilder().add("timestamp", entries.head.timestamp.toString))
-      .build()
-  }
   val EARTH_RADIUS = 6372.8  //radius in km
 
 
