@@ -56,6 +56,16 @@ class GPSTrajectoryTidy(val minimumDistance: Int = 10,
     tidyPoints
   }
 
+  /**
+    * Remove successive points that have the same coordinates but different timestamps.
+    *
+    * @param points the GPS trajectory
+    * @return
+    */
+  def deduplicate(points: Seq[TrackPoint]): Seq[TrackPoint] =
+    points.head :: points.sliding(2).collect { case Seq(a,b) if a.lat != b.lat || a.long != b.long => b }.toList
+
+
 }
 
 object GPSTrajectoryTidy {
