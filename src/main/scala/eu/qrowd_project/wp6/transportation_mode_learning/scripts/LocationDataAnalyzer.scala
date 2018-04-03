@@ -3,9 +3,9 @@ package eu.qrowd_project.wp6.transportation_mode_learning.scripts
 import java.io.{BufferedWriter, FileWriter}
 import java.nio.file.{Files, Path, Paths}
 import java.sql.Timestamp
+import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
-import java.time.{Duration, LocalDateTime}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -57,10 +57,14 @@ object LocationDataAnalyzer {
 
     // load the data
     val entries = loadData(input, timestampFormat)
+    println(s"#entries: ${entries.size}")
 
     // split by day
     val entriesPerDay = splitByDay(entries)
       .filter(_._2.nonEmpty)
+
+    // trip detection
+    entriesPerDay.foreach(entries => new TripDetection(true).find(entries._2))
 
 //    // windows as TSV
     val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
@@ -119,9 +123,9 @@ object LocationDataAnalyzer {
     })
 
     //    //
-//    val entitiesbefore12 = entriesPerDay(15).filter(e => e._1.toLocalDateTime.getHour < 12)
-//    println(toGeoJSONLineString(entitiesbefore12))
-//    val json = toBarefootJSON(entitiesbefore12)
+//    val entitiesbefore12 = entriesPerDay(15)._2.filter(e => e.timestamp.toLocalDateTime.getHour < 12)
+//    println(GeoJSONConverter.toGeoJSONLineString(entitiesbefore12))
+//    val json = BarefootJSONConverter.convert(entitiesbefore12)
 //    print(json)
 //
 //
@@ -135,8 +139,14 @@ object LocationDataAnalyzer {
     // Eels API
     implicit val hadoopConfiguration = new Configuration()
     implicit val hadoopFileSystem = FileSystem.get(hadoopConfiguration) // This is required
-    val source = ParquetSource(Paths.get(path)).withProjection("timestamp", "point")
-    val data = source.toDataStream().collect
+    val source = ParquetSource(Paths.get(path))
+    println(source.schema)
+    println(source.toDataStream().take(10).collect.mkString("\n"))
+
+    val data = source
+      .withProjection("timestamp", "point")
+      .toDataStream()
+      .collect
 
     // Spark API
 //    val session = SparkSession.builder()
@@ -253,9 +263,9 @@ object LocationDataAnalyzer {
 
         val distance = HaversineDistance.compute(begin, end)
 
-        val distanceSum = haversineDistance(values)
+        val distanceSum = TrackpointUtils.haversineDistanceSum(values)
 
-        val speed = avgSpeed(values)
+        val speed = TrackpointUtils.avgSpeed(values)
 
         (start.toLocalDateTime.format(timeFormatter), values.size, begin.toString(), end.toString(), norm, distance, distanceSum, speed)
       })
@@ -267,46 +277,5 @@ object LocationDataAnalyzer {
     points.map(tuple => tuple.productIterator.mkString(separator) + "\n").foreach(writer.write)
     writer.close()
   }
-
-  private def toBarefootJSON(entries: Seq[TrackPoint]): JsonArray = {
-    val features = Json.createArrayBuilder()
-
-    val concisePoints = entries.head :: entries.sliding(2).collect { case Seq(a,b) if a != b => b }.toList
-
-    concisePoints.zipWithIndex.foreach{
-      case(p, i) =>
-        features.add(i, Json.createObjectBuilder()
-          .add("id", i)
-          .add("time", p.timestamp.getTime)
-          .add("point", s"POINT (${p.long} ${p.lat})"))
-    }
-
-    features.build()
-  }
-
-
-  val EARTH_RADIUS = 6372.8  //radius in km
-
-
-  private def haversineDistance[P <: Point](points: Seq[P]): Double =
-    points.sliding(2).collect { case Seq(a,b) => HaversineDistance.compute(a, b)}.sum
-
-  /**
-    * Time difference in seconds
-    */
-  private def timeDiff(begin: TrackPoint, end: TrackPoint): Double =
-    Duration.between(begin.timestamp.toLocalDateTime, end.timestamp.toLocalDateTime).getSeconds
-
-  private def avgSpeed(entries: Seq[TrackPoint]) = {
-    val distanceInMeters = haversineDistance(entries) * 1000
-    val diffSeconds = timeDiff(entries.head, entries.last)
-
-    val metersPerSecond = if (diffSeconds == 0) 0
-                          else distanceInMeters.toDouble / diffSeconds
-
-    metersPerSecond * 3.6
-  }
-
-
 
 }
