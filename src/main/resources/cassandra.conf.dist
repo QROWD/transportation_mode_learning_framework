@@ -1,0 +1,14 @@
+connection {
+    url =
+    port =
+
+    credentials {
+      user =
+      password =
+    }
+
+    socketOptions {
+      connectTimeout = 120000
+      readTimeout = 120000
+    }
+}
