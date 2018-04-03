@@ -1,22 +1,14 @@
 package eu.qrowd_project.wp6.transportation_mode_learning.mapmatching
 
-import java.io._
+import java.io.{OutputStreamWriter, _}
 import java.net.Socket
+import java.nio.charset.StandardCharsets
 
-import org.apache.http.NameValuePair
-import org.apache.http.client.methods.HttpGet
-import org.apache.http.client.utils.URLEncodedUtils
-import org.apache.http.entity.ContentType
-import org.apache.http.impl.client.HttpClientBuilder
-import org.apache.http.message.BasicNameValuePair
-import org.apache.http.entity.StringEntity
-import org.apache.http.client.methods.HttpPost
-import scala.collection.JavaConversions._
+import scala.util.Try
 
-import com.google.gson.JsonParser
-import eu.qrowd_project.wp6.transportation_mode_learning.util.Loan
+import eu.qrowd_project.wp6.transportation_mode_learning.util.TryWith
 import javax.json.{Json, JsonObject}
-import jdk.nashorn.internal.parser.JSONParser
+import org.apache.http.impl.client.HttpClientBuilder
 
 /**
   * Communicate with the Barefoot Map server via a socket stream.
@@ -25,69 +17,47 @@ import jdk.nashorn.internal.parser.JSONParser
   * @param port the socket port
   */
 class BarefootMapMatcherSocket(val host: String, val port: Int) extends BarefootMapMatchingService {
+  val logger = com.typesafe.scalalogging.Logger("Barefoot Map Matcher")
 
   private val httpClient = HttpClientBuilder.create().build()
 
-  def query(json: String): Option[JsonObject] = getRestContent(json)
+  override def query(json: String): Option[JsonObject] = request(json)
 
+  private def request(json: String): Option[JsonObject] = {
 
-  private def getRestContent(json: String): Option[JsonObject] = {
-
-    import java.io.OutputStreamWriter
-    import java.nio.charset.StandardCharsets
-
+    // generate the request JSON document
     val jsonDoc = Json.createObjectBuilder()
       .add("format", "geojson")
       .add("request", Json.createReader(new ByteArrayInputStream(json.getBytes())).readArray())
       .build()
-    println(jsonDoc)
-//
-//    val jsonDoc = new JSONObject()
-//    jsonDoc.put("format", "geojson")
-//    val jsonData = new JsonParser().parse(new StringReader(json)).getAsJsonArray
-//    println(jsonData)
-//    jsonDoc.put("request", jsonData)
-//
-//    println(jsonDoc)
 
-    val s = new Socket(host, port)
+    // open socket
+    TryWith(new Socket(host, port))({ socket =>
+      var res: Option[JsonObject] = None
 
-    val outStr: StringBuilder = new StringBuilder()
-
-    var res: Option[JsonObject] = null
-    try {
-      val out = new OutputStreamWriter(s.getOutputStream, StandardCharsets.UTF_8)
-
-      try {
+      // send request
+      TryWith(new OutputStreamWriter(socket.getOutputStream, StandardCharsets.UTF_8)) { out =>
+        logger.info(s"Barefoot request: ${jsonDoc.toString}")
         out.write(jsonDoc.toString)
         out.write("\n")
         out.flush()
 
-
-        val in = new BufferedReader(new InputStreamReader(s.getInputStream))
-        var line: String = null
-        val status = in.readLine()
-        if(status == "SUCCESS") {
-          res = Some(Json.createReader(in).readObject())
-//          while ({line = in.readLine; line != null}) {
-//            outStr.append(line)
-//          }
-        } else {
-          println("Error")
-          res = None
-        }
-        in.close()
-
-      } finally {
-        if (out != null) {
-          out.close()
-//          in.close()
-          s.close()
+        // get response
+        TryWith(new BufferedReader(new InputStreamReader(socket.getInputStream))) { in =>
+          val status = in.readLine()
+          if (status == "SUCCESS") {
+            res = Some(Json.createReader(in).readObject())
+          } else {
+            logger.error(s"Barefoot Request Error: $status")
+          }
         }
       }
-    }
+      res
+    }).get
+  }
 
-    res
+  private def aquire(host: String, port: Int): Try[Socket] = {
+    Try(new Socket(host, port))
   }
 
   def shutdown(): Unit = {
