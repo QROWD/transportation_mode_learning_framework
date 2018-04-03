@@ -64,7 +64,7 @@ object LocationDataAnalyzer {
       .filter(_._2.nonEmpty)
 
     // trip detection
-    entriesPerDay.foreach(entries => new TripDetection(true).find(entries._2))
+//    entriesPerDay.foreach(entries => new TripDetection(true).find(entries._2))
 
 //    // windows as TSV
     val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
@@ -84,7 +84,7 @@ object LocationDataAnalyzer {
 //    entriesPerDay.foreach(e =>  GeoJSONExporter.export(e._2, "linestring",  s"locations_line_${e._1.format(dateFormatter)}.json"))
 
     // clustered GPS data per day
-    val stopDetector = new StopDetection(0.5, 0.1, 40)
+    val stopDetector = new StopDetection(0.5, 0.3, 80)
     entriesPerDay.foreach(e => {
       val points = e._2
 //      val clusters = new GeoSpatialClustering(0.3, 5).cluster(points.asJava)
@@ -109,7 +109,7 @@ object LocationDataAnalyzer {
         .foldLeft(GeoJSONConverter.toGeoJSONPoints(Seq())) { (a, b) => GeoJSONConverter.merge(a, b) }
 
       // write to disk
-      GeoJSONExporter.write(json, s"stop_cluster_points_${e._1.format(dateFormatter)}.json")
+      GeoJSONExporter.write(json, jsonDir.resolve(s"stop_cluster_points_${e._1.format(dateFormatter)}.json").toString)
 
 //      GeoJSONExporter.export(stopClusters.flatten, "points", s"stop_cluster_points_${e._1.format(dateFormatter)}.json")
       println(stopClusters.map(s => (s.size, s)).mkString("\n"))
@@ -118,7 +118,7 @@ object LocationDataAnalyzer {
       GeoJSONExporter.write(
           GeoJSONConverter.merge(json,
           GeoJSONConverter.convert(stopClusters.flatten, "linestring")),
-        s"lines_with_stop_cluster_points_${e._1.format(dateFormatter)}.json")
+        jsonDir.resolve(s"lines_with_stop_cluster_points_${e._1.format(dateFormatter)}.json").toString)
 
     })
 

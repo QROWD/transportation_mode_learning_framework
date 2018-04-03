@@ -31,9 +31,9 @@ class CassandraDBConnector {
         config.getString("connection.credentials.user"),
         config.getString("connection.credentials.password"))
       .withMaxSchemaAgreementWaitSeconds(60)
-      .withSocketOptions(new SocketOptions()
-        .setConnectTimeoutMillis(120000)
-        .setReadTimeoutMillis(120000))
+//      .withSocketOptions(new SocketOptions()
+//        .setConnectTimeoutMillis(120000)
+//        .setReadTimeoutMillis(120000))
       .build
     builder.build
   }

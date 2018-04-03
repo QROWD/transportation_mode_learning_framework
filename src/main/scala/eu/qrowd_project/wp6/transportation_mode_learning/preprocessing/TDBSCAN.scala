@@ -106,8 +106,10 @@ class TDBSCAN(val ceps: Double, val eps: Double, val minPts: Int) {
 
     logger.debug(s"got ${clusters.size} clusters")
     logger.debug("merging clusters...")
-    val mergedClusters =
-      clusters.foldRight(Seq[Seq[TrackPoint]]()){
+    var mergedClusters =
+      clusters
+        .filter(_.size >= minPts)
+        .foldRight(Seq[Seq[TrackPoint]]()){
       (left, rightClusters) => {
         if(rightClusters.isEmpty) {
           left +: rightClusters
@@ -123,9 +125,58 @@ class TDBSCAN(val ceps: Double, val eps: Double, val minPts: Int) {
         }
       }
     }
-    logger.debug(s"got ${mergedClusters.size} clusters after merging.")
+    logger.info(s"got ${mergedClusters.size} clusters after time overlap merging.")
 
-    mergedClusters.filter(_.size >= minPts)
+
+    // we perform another merge step if clusters are too close by distance
+    mergedClusters =
+      mergedClusters.foldRight(Seq[Seq[TrackPoint]]()){
+        (left, rightClusters) => {
+          if(rightClusters.isEmpty) {
+            left +: rightClusters
+          } else {
+            val right = rightClusters.head
+            // merge if there is not that much distance
+//            println(left.last + ":::" + right.head)
+//            println(distance(left.last, right.head))
+            if(distance(left.last, right.head) < ceps) {
+//              println("merge")
+              val mergedCluster = left ++ right
+              mergedCluster +: rightClusters.drop(1)
+            } else { // otherwise, prepend
+//              println("prepended: " + (left +: rightClusters).map(_.head))
+              left +: rightClusters
+            }
+          }
+        }
+      }
+    logger.info(s"got ${mergedClusters.size} clusters after distance merging.")
+
+
+//    mergedClusters
+//      .filter(_.size >= minPts)
+//      .foldRight(Seq[Seq[TrackPoint]]()){
+//      (left, rightClusters) => {
+//        if(rightClusters.isEmpty) {
+//          left +: rightClusters
+//        } else {
+//          val right = rightClusters.head
+//          // merge if there is not that much distance
+//          //            println(left.last + ":::" + right.head)
+//                      println(distance(left.last, right.head))
+//          if(distance(left.last, right.head) < ceps) {
+//            //              println("merge")
+//            val mergedCluster = left ++ right
+//            mergedCluster +: rightClusters.drop(1)
+//          } else { // otherwise, prepend
+//            //              println("prepended: " + (left +: rightClusters).map(_.head))
+//            left +: rightClusters
+//          }
+//        }
+//      }
+//    }
+
+    mergedClusters
   }
 
   private def getNeighbors(p: TrackPoint, points: Seq[TrackPoint]): Seq[TrackPoint] = {

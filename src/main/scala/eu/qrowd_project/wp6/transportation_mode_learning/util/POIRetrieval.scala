@@ -21,7 +21,7 @@ class POIRetrieval(val url: String) {
       |Prefix ogc: <http://www.opengis.net/ont/geosparql#>
       |PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
       |SELECT ?s ?l ?type (<bif:st_x>(?point) as ?long) (<bif:st_y>(?point) as ?lat) WHERE {
-      |    ?s a lgdo:Amenity ;
+      |    ?s a lgdo:Amenity ; a <http://linkedgeodata.org/meta/Node> ;
       |    rdfs:label ?l ;
       |    geom:geometry [
       |        ogc:asWKT ?point
@@ -39,7 +39,7 @@ class POIRetrieval(val url: String) {
     * @param radius
     */
   def getPOIsAt[P <: Point](point: P, radius: Double): Seq[POI] = {
-    getPOIsAt(point.lat, point.long, radius)
+    getPOIsAt(point.long, point.lat, radius)
   }
 
   /**

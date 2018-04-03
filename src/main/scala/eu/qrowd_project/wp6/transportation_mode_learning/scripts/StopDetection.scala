@@ -34,7 +34,9 @@ class StopDetection(val ceps: Double = 0.3,
   def find(points: Seq[TrackPoint]): Seq[Seq[TrackPoint]] = {
     import scala.collection.JavaConverters._
     //    println("ST-DBSCAN:" + new STDBSCAN(eps, 60, minPts).cluster(points.asJava).asScala.map(c => c.getPoints).mkString("\n"))
-    clusterer.cluster(points).filter(_.size >= minPts)
+    clusterer
+      .cluster(points)
+//      .filter(_.size >= minPts)
   }
 }
 

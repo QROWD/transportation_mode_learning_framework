@@ -26,6 +26,7 @@ class TripDetection(val useMapMatching: Boolean = false) {
 
     // compute stop point clusters
     val stopClusters = StopDetection().find(points)
+    logger.info(s"#stop clusters:${stopClusters.size}")
 
     // keep first and last point of each cluster
     val stopsStartEnd = stopClusters.map(c => (c.head, c.last))
@@ -36,17 +37,21 @@ class TripDetection(val useMapMatching: Boolean = false) {
     val trips: Seq[(TrackPoint, TrackPoint, Seq[TrackPoint])] =
     stopsStartEnd
       .sliding(2)
-      .map{
-        case Seq(firstStop, secondStop) =>
+      .filter(_.size == 2)
+      .map (e =>{
+//        case Seq(firstStop: (TrackPoint, TrackPoint), secondStop: (TrackPoint, TrackPoint)) =>
           // last point of first stop
-          val begin = firstStop._2
+          val begin = e(0)._2//firstStop._2
           // first point of second stop
-          val end = secondStop._1
+          val end = e(1)._1//secondStop._1
           // entries in between
           val entries = points.filter(p => p.timestamp.after(begin.timestamp) && p.timestamp.before(end.timestamp))
 
           (begin, end, entries)
-      }
+//        case other =>
+//          println(other)
+//          Seq[(TrackPoint, TrackPoint, Seq[TrackPoint])]()
+  } )
       .toSeq
 
 //    trips.map(trip => trip.groupBy(p => p.timestamp).map(e => (e._1, e._2.size))).foreach(println(_))
