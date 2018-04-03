@@ -2,8 +2,8 @@ package eu.qrowd_project.wp6.transportation_mode_learning.util
 
 import scala.math._
 
-import eu.qrowd_project.wp6.transportation_mode_learning.scripts.LocationDataAnalyzer.EARTH_RADIUS
 import org.apache.commons.math3.ml.distance.DistanceMeasure
+
 
 /**
   * The Haversine formula determines the great-circle distance between two points on a sphere given their
@@ -12,6 +12,8 @@ import org.apache.commons.math3.ml.distance.DistanceMeasure
   * @author Lorenz Buehmann
   */
 object HaversineDistance extends DistanceMeasure {
+
+  val EARTH_RADIUS_KM = 6371.0
 
   /**
     * The Haversine formula determines the great-circle distance between two points on a sphere given their
@@ -28,7 +30,7 @@ object HaversineDistance extends DistanceMeasure {
     val a = pow(sin(dLat / 2), 2) + pow(sin(dLon / 2), 2) * cos(p1.lat.toRadians) * cos(p2.lat.toRadians)
     val c = 2 * asin(sqrt(a))
 
-    EARTH_RADIUS * c
+    EARTH_RADIUS_KM * c
   }
 
   override def compute(a: Array[Double], b: Array[Double]): Double = compute(Point(a(0), a(1)), Point(b(0), b(1)))
