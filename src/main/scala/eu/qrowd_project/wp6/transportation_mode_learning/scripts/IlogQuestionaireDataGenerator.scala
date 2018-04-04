@@ -1,47 +1,88 @@
 package eu.qrowd_project.wp6.transportation_mode_learning.scripts
 
-import java.nio.file.Paths
-import java.time.{LocalDate, LocalDateTime}
+import java.io.File
+import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
+import java.time.{LocalDate, LocalDateTime}
+import java.util.Locale
 
 import eu.qrowd_project.wp6.transportation_mode_learning.util._
-import io.eels.component.parquet.ParquetSource
 import javax.json.Json
-import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.FileSystem
 
 /**
+  * The main entry class for processing the ILog data of the given day.
+  *
   * @author Lorenz Buehmann
   */
-object IlogQuestionaireDataGenerator extends JSONExporter {
+object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEventRecordLoader {
+
+  val logger = com.typesafe.scalalogging.Logger("ILog Questionaire Data Generator")
 
   val poiRetrieval = POIRetrieval("http://linkedgeodata.org/sparql")
   val tripDetector = new TripDetection()
 
   def main(args: Array[String]): Unit = {
 
-    val inputPath = args(0)
+    parser.parse(args, Config()) match {
+      case Some(config) =>
 
-    val date = "20171204"
-    val outputPath = "/tmp/questionaire_20180330.json"
+        try {
+          new File(config.out.getParent).mkdirs()
+          // iterate over dates, for debugging - TODO remove
+          val formatter = DateTimeFormatter.ofPattern("yyyyMMdd", Locale.ENGLISH)
+          var startDate = java.time.LocalDate.parse("20180301", formatter)
+          val endDate = java.time.LocalDate.parse("20180331", formatter)
+          while (startDate.isBefore(endDate)) {
+            run(config.copy(
+              date = startDate.format(formatter),
+              out = new File(config.out.getParent + startDate.format(formatter))))
+            startDate = startDate.plusDays(1)
+          }
+        } catch {
+          case t: Throwable => logger.error("Failed to process the ILog data.", t)
+        } finally {
+          // stop Cassandra here because when iterating we want to do it only once
+          cassandra.close()
+        }
+      case None =>
+      // arguments are bad, error message will have been displayed
+    }
 
-    // connect to Trento Cassandra DB
-//    val cassandra = CassandraDBConnector()
+  }
+
+
+  private val formatter = DateTimeFormatter.ofPattern("yyyyMMdd")
+
+  // connect to Trento Cassandra DB
+  private lazy val cassandra = CassandraDBConnector(
+    // restriction of users TODO remove
+    Seq("ecfb0929250fb6dda66a4065441230ab27f094e5", "d429974540bfd38c3367fe9f0c8682775ff4fa18")
+  )
+
+  private def run(config: Config) = {
+    //    val inputPath = args(0)
+    //    val data = loadDataFromDisk(inputPath, date)
+
+    logger.info(s"processing ILog data of ${config.date} ...")
+
+    val date = config.date
+    val outputPath = config.out.getAbsolutePath
 
     // get the data for the given day, i.e. (user, entries)
-//    val data = cassandra.readData(date)
-    val data = loadDataFromDisk(inputPath, date)
+    val data = cassandra.readData(date)
 
     // detect trips per each user
     val result = data.flatMap {
       case (userId: String, entries: Seq[LocationEventRecord]) =>
+        logger.info(s"processing user $userId ...")
+
         // extract GPS data
         val trajectory = entries.map(e => TrackPoint(e.latitude, e.longitude, e.timestamp))
-        println(s"trajectory size:${trajectory.size}")
+        logger.info(s"trajectory size:${trajectory.size}")
 
         // find trips (start, end, trace)
         val trips = tripDetector.find(trajectory)
-        println(s"#trips: ${trips.size}")
+        logger.info(s"#trips: ${trips.size}")
 
         // get possible POIs at start and end of trip
         trips.map(trip => {
@@ -76,35 +117,6 @@ object IlogQuestionaireDataGenerator extends JSONExporter {
 
     }
     write(json.build(), outputPath)
-
-//    cassandra.close()
-
-
-  }
-
-  import java.time.format.DateTimeFormatter
-  val  formatter = DateTimeFormatter.ofPattern("yyyyMMdd")
-  private def loadDataFromDisk(path: String, dateStr: String): Seq[(String, Seq[LocationEventRecord])] = {
-
-    val date = LocalDate.parse(dateStr, formatter)
-    println(date)
-    // Eels API
-    implicit val hadoopConfiguration = new Configuration()
-    implicit val hadoopFileSystem = FileSystem.get(hadoopConfiguration) // This is required
-    val source = ParquetSource(Paths.get(path))
-    println(source.schema)
-    println(source.toDataStream().take(10).collect.mkString("\n"))
-
-    val records = source
-      //      .withProjection("timestamp", "point")
-      .toDataStream()
-      .collect
-      .map(row => LocationEventRecord.from(row))
-      // choose a single day
-      .filter(r => r.timestamp.toLocalDateTime.toLocalDate.equals(date))
-
-    Seq(("dummyUserId", records))
-
   }
 
   private def splitByDay(entries: Seq[TrackPoint]): Seq[(LocalDateTime, Seq[TrackPoint])] = {
@@ -116,7 +128,7 @@ object IlogQuestionaireDataGenerator extends JSONExporter {
     println(s"Last day: $lastDay")
 
     var currentDay = firstDay
-    while(currentDay.isBefore(lastDay)) {
+    while (currentDay.isBefore(lastDay)) {
       val nextDay = currentDay.plusDays(1)
 
       val currentEntries = entries.filter(e => {
@@ -132,4 +144,29 @@ object IlogQuestionaireDataGenerator extends JSONExporter {
     list
   }
 
+  val today = LocalDate.now().format(formatter)
+
+  case class Config(date: String = today,
+                    out: File = new File(System.getProperty("java.io.tmpdir")
+                      + File.separator + "ilog-questionaire" + File.separator + today + ".json"))
+
+  private val parser = new scopt.OptionParser[Config]("IlogQuestionaireDataGenerator") {
+    head("IlogQuestionaireDataGenerator", "0.1.0")
+
+    opt[File]('o', "out")
+      //      .required()
+      .valueName("<file>").
+      action((x, c) => c.copy(out = x)).
+      text("Path to output JSON file containing the start and end point of each trip." +
+        "If no path is provided, data will be written to /SYSTEM_TEMP_FOLDER/ilog-questionaire/{$date}.json")
+
+    opt[String]('d', "date")
+      //      .required()
+      .valueName("<yyyyMMdd>")
+      .action((x, c) =>
+        c.copy(date = x)).text("Date to be processed (yyyyMMdd), e.g. 20180330 . " +
+      "If no date is provided, we'll use the current date.")
+
   }
+
+}

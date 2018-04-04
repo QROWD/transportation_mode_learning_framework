@@ -5,16 +5,18 @@ import java.io.File
 import scala.collection.JavaConversions._
 
 import com.datastax.driver.core.exceptions.{InvalidQueryException, UnauthorizedException}
-import com.datastax.driver.core.{Cluster, Session, SocketOptions}
+import com.datastax.driver.core.{Cluster, Session}
 import com.typesafe.config.ConfigFactory
 
 /**
-  * Connect to a Cassandra DB.
+  * Connect to a Cassandra DB of Uni Trento
   * Credential have to be provided in the file `cassandra.conf`
+  *
+  * As an optional argument you can set the user IdDs used during data retrieval
   *
   * @author Lorenz Buehmann
   */
-class CassandraDBConnector {
+class CassandraDBConnector(val userIds: Seq[String] = Seq()) {
 
   val logger = com.typesafe.scalalogging.Logger("Cassandra DB connector")
 
@@ -35,14 +37,20 @@ class CassandraDBConnector {
 //        .setConnectTimeoutMillis(120000)
 //        .setReadTimeoutMillis(120000))
       .build
-    builder.build
+    val cluster = builder.build
+    _clusterInitialized = true
+    cluster
   }
 
   lazy val session: Session = {
     logger.info("setting up Cassandra session...")
-    cluster.connect
+    val session = cluster.connect
+    _sessionInitialized = true
+    session
   }
 
+  private var _clusterInitialized = false
+  private var _sessionInitialized = false
 
   /**
     *
@@ -58,7 +66,7 @@ class CassandraDBConnector {
     val keyspaces = cluster.getMetadata.getKeyspaces
 
     // loop over each keyspace
-    for (keyspace <- keyspaces) { //Get the keyspace name that is what we need to perform queries. Since 1 keyspace = 1 user, the keyspace name is the user uniqueidentifier (salt)
+    for (keyspace <- keyspaces if userIds.contains(keyspace.getName)) { //Get the keyspace name that is what we need to perform queries. Since 1 keyspace = 1 user, the keyspace name is the user uniqueidentifier (salt)
       val usersalt = keyspace.getName
 
       try {
@@ -66,7 +74,7 @@ class CassandraDBConnector {
         val resultSet = session.execute("SELECT * FROM " + usersalt + ".locationeventpertime WHERE day='" + day + "'")
 
         // if at this point there is no error means that you have select permissions and then the user belongs to QROWD
-        logger.info(s"User $usersalt belonging to QROWD :)")
+        logger.debug(s"User $usersalt belonging to QROWD :)")
         if (resultSet != null) {
           val entries = resultSet.map(row => LocationEventRecord.from(row)).toSeq
           data :+= (usersalt, entries)
@@ -86,15 +94,22 @@ class CassandraDBConnector {
     * Close the connection.
     */
   def close(): Unit = {
-    logger.info("stopping Cassandra session and cluster...")
-    session.close()
-    cluster.close()
+    if(_sessionInitialized) {
+      logger.info("stopping Cassandra session ...")
+      session.close()
+    }
+    if(_clusterInitialized) {
+      logger.info("stopping Cassandra cluster ...")
+      cluster.close()
+    }
   }
 }
 
 object CassandraDBConnector {
 
   def apply(): CassandraDBConnector = new CassandraDBConnector()
+
+  def apply(userIDs: Seq[String]): CassandraDBConnector = new CassandraDBConnector(userIDs)
 
 
   def main(args: Array[String]): Unit = {
