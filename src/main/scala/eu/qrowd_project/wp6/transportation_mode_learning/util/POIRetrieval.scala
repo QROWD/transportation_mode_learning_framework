@@ -1,14 +1,15 @@
 package eu.qrowd_project.wp6.transportation_mode_learning.util
 
 import org.aksw.jena_sparql_api.core.{FluentQueryExecutionFactory, QueryExecutionFactory}
-import org.apache.jena.query.{ParameterizedSparqlString, ResultSetFactory, ResultSetFormatter}
-
+import org.apache.jena.query.{ParameterizedSparqlString, ResultSetCloseable, ResultSetFactory, ResultSetFormatter}
 import scala.collection.JavaConversions._
 
 /**
   * @author Lorenz Buehmann
   */
 class POIRetrieval(val url: String) {
+
+  val logger = com.typesafe.scalalogging.Logger("POI Retrieval (SPARQL@LGD)")
 
   lazy val qef: QueryExecutionFactory = FluentQueryExecutionFactory
     .http(url)
@@ -53,16 +54,21 @@ class POIRetrieval(val url: String) {
     queryTemplate.setLiteral("p_long", long)
     queryTemplate.setLiteral("p_lat", lat)
 
-    println(queryTemplate)
-    val rs = qef.createQueryExecution(queryTemplate.asQuery()).execSelect()
+    logger.info(s"running query\n $queryTemplate")
+    TryWith(ResultSetCloseable.closeableResultSet(qef.createQueryExecution(queryTemplate.asQuery())))({ rs =>
+      val pois = ResultSetFormatter.toList(rs).map(qs =>
+        POI(
+          qs.getResource("s").getURI,
+          qs.getLiteral("l").getLexicalForm,
+          qs.getResource("type").getURI,
+          qs.getLiteral("long").getDouble,
+          qs.getLiteral("lat").getDouble))
+      logger.info(s"got ${pois.size} POI candidates")
 
-    ResultSetFormatter.toList(rs).map(qs =>
-      POI(
-      qs.getResource("s").getURI,
-      qs.getLiteral("l").getLexicalForm,
-      qs.getResource("type").getURI,
-      qs.getLiteral("long").getDouble,
-      qs.getLiteral("lat").getDouble))
+      pois
+    })
+      .getOrElse(Seq())
+
   }
 
 }
