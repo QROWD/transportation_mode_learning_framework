@@ -37,7 +37,7 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
           while (startDate.isBefore(endDate)) {
             run(config.copy(
               date = startDate.format(formatter),
-              out = new File(config.out.getParent + startDate.format(formatter))))
+              out = new File(config.out.getParent + File.separator + startDate.format(formatter) + ".json")))
             startDate = startDate.plusDays(1)
           }
         } catch {
@@ -139,6 +139,7 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
     }
 
     // write as JSON to disk
+    println(s"writin to $outputPath")
     write(toJson(result), outputPath)
   }
 
