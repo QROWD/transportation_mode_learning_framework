@@ -2,10 +2,7 @@ package eu.qrowd_project.wp6.transportation_mode_learning.scripts
 
 import java.io.File
 
-import eu.qrowd_project.wp6.transportation_mode_learning.preprocessing.{
-  STDBSCAN,
-  TDBSCAN
-}
+import eu.qrowd_project.wp6.transportation_mode_learning.preprocessing.TDBSCAN
 import eu.qrowd_project.wp6.transportation_mode_learning.util.TrackPoint
 
 /**
@@ -13,16 +10,33 @@ import eu.qrowd_project.wp6.transportation_mode_learning.util.TrackPoint
   *
   * Right now, we perform spatio-temporal clustering to solve this task.
   *
-  * @param ceps   the distance range to ensure that the points comprising a stop are of state continuity (in km)
-  * @param eps    the search radius for identifying density-based neighborhood (in km)
-  * @param minPts the minimum number of neighboring points to identify a core point
+  * @param clusterer the cluster computing algorithm
   * @author Lorenz Buehmann
   */
-class StopDetection(val ceps: Double = 0.3,
-                    val eps: Double = 0.1,
-                    val minPts: Int = 80) {
+class StopDetection(val clusterer: TDBSCAN) {
 
-  val clusterer = new TDBSCAN(ceps, eps, minPts)
+  /**
+    * Determine stops given a GPS trajectory, i.e. a sequence of GPS points tagged with a timestamp.
+    *
+    * @param ceps   the distance range to ensure that the points comprising a stop are of state continuity (in km)
+    * @param eps    the search radius for identifying density-based neighborhood (in km)
+    * @param minPts the minimum number of neighboring points to identify a core point
+    */
+  def this(ceps: Double = 0.3,
+           eps: Double = 0.1,
+           minPts: Int = 80) {
+    this(new TDBSCAN(ceps, eps, minPts))
+  }
+
+  /**
+    * Determine stops given a GPS trajectory, i.e. a sequence of GPS points tagged with a timestamp.
+    *
+    * @param config parent element must contain path to cluster implementation, i.e.
+    *               `stop_detection.clustering.tdbscan`
+    */
+  def this(config: com.typesafe.config.Config) {
+    this(new TDBSCAN(config.getConfig("stop_detection.clustering.tdbscan")))
+  }
 
   /**
     * Find stop points given a set of time-tagged GPS points P.
@@ -32,11 +46,10 @@ class StopDetection(val ceps: Double = 0.3,
     * @return sequences of GPS points that denote a stop point
     */
   def find(points: Seq[TrackPoint]): Seq[Seq[TrackPoint]] = {
-    import scala.collection.JavaConverters._
     //    println("ST-DBSCAN:" + new STDBSCAN(eps, 60, minPts).cluster(points.asJava).asScala.map(c => c.getPoints).mkString("\n"))
     clusterer
       .cluster(points)
-//      .filter(_.size >= minPts)
+    //      .filter(_.size >= minPts)
   }
 }
 
@@ -44,6 +57,7 @@ object StopDetection {
 
   def apply(ceps: Double = 0.3, eps: Double = 0.1, minPts: Int = 80): StopDetection = new StopDetection(ceps, eps, minPts)
 
+  def apply(config: com.typesafe.config.Config): StopDetection = new StopDetection(config)
 
   def main(args: Array[String]): Unit = {
 

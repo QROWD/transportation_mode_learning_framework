@@ -28,7 +28,7 @@ class POIRetrieval(val url: String) {
       |        ogc:asWKT ?point
       |    ] ;
       |    a ?type . ?type rdfs:subClassOf lgdo:Amenity
-      |    FILTER(<bif:st_intersects>(?point, <bif:st_point> (?p_long, ?p_lat), 0.1))
+      |    FILTER(<bif:st_intersects>(?point, <bif:st_point> (?p_long, ?p_lat), ?radius))
       |    FILTER(?type != lgdo:Amenity)
       |}
       |LIMIT 10
@@ -53,6 +53,7 @@ class POIRetrieval(val url: String) {
     queryTemplate.clearParams()
     queryTemplate.setLiteral("p_long", long)
     queryTemplate.setLiteral("p_lat", lat)
+    queryTemplate.setLiteral("radius", radius)
 
     logger.info(s"running query\n $queryTemplate")
     TryWith(ResultSetCloseable.closeableResultSet(qef.createQueryExecution(queryTemplate.asQuery())))({ rs =>
@@ -72,8 +73,6 @@ class POIRetrieval(val url: String) {
   }
 
 }
-
-case class POI(uri: String, label: String, cls: String, long: Double, lat: Double)
 
 object POIRetrieval {
   def apply(url: String): POIRetrieval = new POIRetrieval(url)

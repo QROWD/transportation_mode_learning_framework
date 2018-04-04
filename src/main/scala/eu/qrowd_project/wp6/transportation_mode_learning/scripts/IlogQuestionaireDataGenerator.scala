@@ -6,6 +6,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+import com.typesafe.config.ConfigFactory
 import eu.qrowd_project.wp6.transportation_mode_learning.util._
 import javax.json.Json
 
@@ -18,8 +19,10 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
 
   val logger = com.typesafe.scalalogging.Logger("ILog Questionaire Data Generator")
 
-  val poiRetrieval = POIRetrieval("http://linkedgeodata.org/sparql")
-  val tripDetector = new TripDetection()
+  private val poiRetrieval = POIRetrieval("http://linkedgeodata.org/sparql")
+  private val tripDetector = new TripDetection()
+
+  private lazy val appConfig = ConfigFactory.load()
 
   def main(args: Array[String]): Unit = {
 
@@ -64,11 +67,11 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
   private val formatter = DateTimeFormatter.ofPattern("yyyyMMdd")
 
   // connect to Trento Cassandra DB
-  val trentoTestUsers = Seq("ecfb0929250fb6dda66a4065441230ab27f094e5", "d429974540bfd38c3367fe9f0c8682775ff4fa18")
-  var users: Seq[String] = Seq()
+  private val trentoTestUsers = Seq("ecfb0929250fb6dda66a4065441230ab27f094e5", "d429974540bfd38c3367fe9f0c8682775ff4fa18")
+  private var users: Seq[String] = Seq()
   private lazy val cassandra = CassandraDBConnector(users)
 
-  private def run(config: Config) = {
+  private def run(config: Config): Unit = {
     //    val inputPath = args(0)
     //    val data = loadDataFromDisk(inputPath, date)
 
@@ -113,7 +116,7 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
             .zipWithIndex
             .foreach { case (trip: Trip, index: Int) =>
 
-              write(toGeoJson(trip), dir.resolve(s"trip_${index}.json").toString)
+              write(toGeoJson(trip), dir.resolve(s"trip_$index.json").toString)
 
               // with cluster points
               write(
@@ -131,8 +134,9 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
 
         // get possible POIs at start and end of trip
         trips.map(trip => {
-          val allPOIsStart = poiRetrieval.getPOIsAt(trip.start, 0.1)
-          val allPOIsEnd = poiRetrieval.getPOIsAt(trip.end, 0.1)
+          val radius = appConfig.getDouble("poi_retrieval.distance_radius")
+          val allPOIsStart = poiRetrieval.getPOIsAt(trip.start, radius)
+          val allPOIsEnd = poiRetrieval.getPOIsAt(trip.end, radius)
 
           val poiStart = allPOIsStart.headOption.getOrElse(UNKNOWN_POI)
           val poiEnd = allPOIsEnd.headOption.getOrElse(UNKNOWN_POI)
@@ -156,7 +160,7 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
     GeoJSONConverter.merge(pointsJson, tripJson)
   }
 
-  val UNKNOWN_POI = POI("", "UNKNOWN", "", -1, -1)
+  private val UNKNOWN_POI = POI("", "UNKNOWN", "", -1, -1)
 
   private def toJson(result: Seq[(String, TrackPoint, POI, TrackPoint, POI)]) = {
     val json = Json.createArrayBuilder()
@@ -182,9 +186,9 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
   }
 
 
-  val today = LocalDate.now().format(formatter)
-  val tmpDir = Paths.get(System.getProperty("java.io.tmpdir"))
-  val outputDir = tmpDir.resolve("ilog-questionaire")
+  private val today = LocalDate.now().format(formatter)
+  private val tmpDir = Paths.get(System.getProperty("java.io.tmpdir"))
+  private val outputDir = tmpDir.resolve("ilog-questionaire")
 
   case class Config(date: String = today,
                     out: File = outputDir.resolve(today + ".json").toFile,

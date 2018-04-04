@@ -15,7 +15,20 @@ import eu.qrowd_project.wp6.transportation_mode_learning.util.{HaversineDistance
   * @param minPts the minimum number of neighboring points to identify a core point
   * @author Lorenz Buehmann
   */
-class TDBSCAN(val ceps: Double, val eps: Double, val minPts: Int) {
+class TDBSCAN(
+               val ceps: Double,
+               val eps: Double,
+               val minPts: Int,
+               val performDistanceMerge: Boolean = false) {
+
+  def this(config: com.typesafe.config.Config) {
+    this(
+      config.getDouble("cEps"),
+      config.getDouble("eps"),
+      config.getInt("minPts"))
+
+    logger.debug(s"TDBSCAN params: ceps=$ceps\teps=$eps\tminPts=$minPts")
+  }
 
   private val logger = com.typesafe.scalalogging.Logger("TDBSCAN")
 
@@ -129,6 +142,7 @@ class TDBSCAN(val ceps: Double, val eps: Double, val minPts: Int) {
 
 
     // we perform another merge step if clusters are too close by distance
+
     mergedClusters =
       mergedClusters.foldRight(Seq[Seq[TrackPoint]]()){
         (left, rightClusters) => {

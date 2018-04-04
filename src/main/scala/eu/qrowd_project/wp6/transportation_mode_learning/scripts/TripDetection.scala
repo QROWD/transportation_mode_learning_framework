@@ -1,5 +1,6 @@
 package eu.qrowd_project.wp6.transportation_mode_learning.scripts
 
+import com.typesafe.config.{Config, ConfigFactory}
 import eu.qrowd_project.wp6.transportation_mode_learning.mapmatching.BarefootMapMatcherSocket
 import eu.qrowd_project.wp6.transportation_mode_learning.util.{BarefootJSONConverter, POIRetrieval, TrackPoint}
 
@@ -8,9 +9,9 @@ import eu.qrowd_project.wp6.transportation_mode_learning.util.{BarefootJSONConve
   *
   * @author Lorenz Buehmann
   */
-class TripDetection(val useMapMatching: Boolean = false) {
-
-
+class TripDetection(
+                     val useMapMatching: Boolean = false,
+                     val config: Config = ConfigFactory.defaultApplication()) {
 
   val logger = com.typesafe.scalalogging.Logger("TripDetection")
 
@@ -27,7 +28,7 @@ class TripDetection(val useMapMatching: Boolean = false) {
     val points = trajectory.sortWith(_ < _)
 
     // compute stop point clusters
-    val stopClusters = StopDetection().find(points)
+    val stopClusters = StopDetection(config.withOnlyPath("stop_detection")).find(points)
     logger.info(s"#stop clusters:${stopClusters.size}")
 
     // keep first and last point of each cluster
