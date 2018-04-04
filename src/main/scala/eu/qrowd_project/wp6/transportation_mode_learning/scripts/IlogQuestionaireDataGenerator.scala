@@ -110,10 +110,13 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
 
         // get possible POIs at start and end of trip
         trips.map(trip => {
-          val poisStart = poiRetrieval.getPOIsAt(trip._1, 0.1)
-          val poisEnd = poiRetrieval.getPOIsAt(trip._2, 0.1)
+          val allPOIsStart = poiRetrieval.getPOIsAt(trip._1, 0.1)
+          val allPOIsEnd = poiRetrieval.getPOIsAt(trip._2, 0.1)
 
-          (userId, trip._1, poisStart.head, trip._2, poisEnd.head)
+          val poiStart = allPOIsStart.headOption.getOrElse(UNKNOWN_POI)
+          val poiEnd = allPOIsEnd.headOption.getOrElse(UNKNOWN_POI)
+
+          (userId, trip._1, poiStart, trip._2, poiEnd)
         })
       case other =>
         println(other)
@@ -131,6 +134,8 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
     val tripJson = GeoJSONConverter.toGeoJSONLineString(trip._3)
     GeoJSONConverter.merge(pointsJson, tripJson)
   }
+
+  val UNKNOWN_POI = POI("", "UNKNOWN", "", -1, -1)
 
   private def toJson(result: Seq[(String, TrackPoint, POI, TrackPoint, POI)]) = {
     val json = Json.createArrayBuilder()
