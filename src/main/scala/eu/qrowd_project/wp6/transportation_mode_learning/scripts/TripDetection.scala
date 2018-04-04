@@ -10,11 +10,13 @@ import eu.qrowd_project.wp6.transportation_mode_learning.util.{BarefootJSONConve
   */
 class TripDetection(val useMapMatching: Boolean = false) {
 
+
+
   val logger = com.typesafe.scalalogging.Logger("TripDetection")
 
   lazy val mapMatcher = new BarefootMapMatcherSocket(host = "127.0.0.1", port = 1234)
 
-  def find(trajectory: Seq[TrackPoint]): Seq[(TrackPoint, TrackPoint, Seq[TrackPoint])] = {
+  def find(trajectory: Seq[TrackPoint]): Seq[Trip] = {
 
     if(trajectory.isEmpty) {
       logger.warn("could not perform trip detection: empty trajectory")
@@ -29,12 +31,12 @@ class TripDetection(val useMapMatching: Boolean = false) {
     logger.info(s"#stop clusters:${stopClusters.size}")
 
     // keep first and last point of each cluster
-    val stopsStartEnd = stopClusters.map(c => (c.head, c.last))
+    val stopsStartEnd = stopClusters.map(c => (c.head, c.last, c))
 
     // the stop clusters are in ascending order w.r.t. time, i.e. we assume trips to be happen
     // between successive points
     // we keep the last point of the start cluster and the first point of the end cluster
-    val trips: Seq[(TrackPoint, TrackPoint, Seq[TrackPoint])] =
+    val trips: Seq[Trip] =
     stopsStartEnd
       .sliding(2)
       .filter(_.size == 2)
@@ -47,7 +49,7 @@ class TripDetection(val useMapMatching: Boolean = false) {
           // entries in between
           val entries = points.filter(p => p.timestamp.after(begin.timestamp) && p.timestamp.before(end.timestamp))
 
-          (begin, end, entries)
+          Trip(begin, end, entries, e(0)._3, e(1)._3)
 //        case other =>
 //          println(other)
 //          Seq[(TrackPoint, TrackPoint, Seq[TrackPoint])]()
@@ -63,7 +65,7 @@ class TripDetection(val useMapMatching: Boolean = false) {
     // perform map matching
     if(useMapMatching) {
       trips.map(trip => {
-        val response = mapMatcher.query(BarefootJSONConverter.convert(trip._3).toString)
+        val response = mapMatcher.query(BarefootJSONConverter.convert(trip.trace).toString)
         println(response)
       })
     }
@@ -73,3 +75,10 @@ class TripDetection(val useMapMatching: Boolean = false) {
 
 
 }
+
+case class Trip(
+                 start: TrackPoint,
+                 end: TrackPoint,
+                 trace: Seq[TrackPoint],
+                 startCluster: Seq[TrackPoint] = Seq(),
+                 endCluster: Seq[TrackPoint])

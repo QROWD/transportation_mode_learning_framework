@@ -88,12 +88,12 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
         logger.info(s"#trips: ${trips.size}")
 
         // debug output if enabled
-        if(config.writeDebugOut) {
+        if (config.writeDebugOut) {
           val dir = outputDir.resolve(s"debug/$date/$userId/")
           dir.toFile.mkdirs()
 
           // write trajectory as GeoJSON
-          if(trajectory.nonEmpty) {
+          if (trajectory.nonEmpty) {
             val lines = GeoJSONConverter.toGeoJSONLineString(trajectory)
             val points = GeoJSONConverter.toGeoJSONPoints(trajectory)
             val linesWithPoints = GeoJSONConverter.merge(lines, points)
@@ -105,18 +105,33 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
           // write trips as GeoJSON
           trips
             .zipWithIndex
-            .foreach(trip => write(toGeoJson(trip._1), dir.resolve(s"trip_${trip._2}.json").toString))
+            .foreach { case (trip: Trip, index: Int) =>
+
+              write(toGeoJson(trip), dir.resolve(s"trip_${index}.json").toString)
+
+              // with cluster points
+              write(
+                GeoJSONConverter.merge(
+                  GeoJSONConverter.merge(
+                    GeoJSONConverter.toGeoJSONPoints(trip.startCluster),
+                    GeoJSONConverter.toGeoJSONPoints(trip.endCluster)
+                  ),
+                  GeoJSONConverter.toGeoJSONLineString(Seq(trip.start) ++ trip.trace ++ Seq(trip.end))
+                ),
+                dir.resolve(s"trip_${index}_with_clusters.json").toString)
+
+            }
         }
 
         // get possible POIs at start and end of trip
         trips.map(trip => {
-          val allPOIsStart = poiRetrieval.getPOIsAt(trip._1, 0.1)
-          val allPOIsEnd = poiRetrieval.getPOIsAt(trip._2, 0.1)
+          val allPOIsStart = poiRetrieval.getPOIsAt(trip.start, 0.1)
+          val allPOIsEnd = poiRetrieval.getPOIsAt(trip.end, 0.1)
 
           val poiStart = allPOIsStart.headOption.getOrElse(UNKNOWN_POI)
           val poiEnd = allPOIsEnd.headOption.getOrElse(UNKNOWN_POI)
 
-          (userId, trip._1, poiStart, trip._2, poiEnd)
+          (userId, trip.start, poiStart, trip.end, poiEnd)
         })
       case other =>
         println(other)
@@ -127,11 +142,11 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
     write(toJson(result), outputPath)
   }
 
-  private def toGeoJson(trip: (TrackPoint, TrackPoint, Seq[TrackPoint])) = {
+  private def toGeoJson(trip: Trip) = {
     val pointsJson = GeoJSONConverter.merge(
-      GeoJSONConverter.toGeoJSONPoints(Seq(trip._1), Map("marker-symbol" -> "s")),
-      GeoJSONConverter.toGeoJSONPoints(Seq(trip._2), Map("marker-symbol" -> "e")))
-    val tripJson = GeoJSONConverter.toGeoJSONLineString(trip._3)
+      GeoJSONConverter.toGeoJSONPoints(Seq(trip.start), Map("marker-symbol" -> "s")),
+      GeoJSONConverter.toGeoJSONPoints(Seq(trip.end), Map("marker-symbol" -> "e")))
+    val tripJson = GeoJSONConverter.toGeoJSONLineString(Seq(trip.start) ++ trip.trace ++ Seq(trip.end))
     GeoJSONConverter.merge(pointsJson, tripJson)
   }
 
@@ -186,11 +201,11 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
         c.copy(date = x)).text("Date to be processed (yyyyMMdd), e.g. 20180330 . " +
       "If no date is provided, we'll use the current date.")
 
-    opt[Unit]( "debug")
+    opt[Unit]("debug")
       .optional()
-      .hidden()
+      //      .hidden()
       .action((x, c) =>
-        c.copy(writeDebugOut = true)).text("If enabled, debug information such as GeoJson documents of trips will be written " +
+      c.copy(writeDebugOut = true)).text("If enabled, debug information such as GeoJson documents of trips will be written " +
       "to disk. The path of the output is /SYSTEM_TEMP_FOLDER/ilog-questionaire/debug/")
 
     help("help").text("prints this usage text")
