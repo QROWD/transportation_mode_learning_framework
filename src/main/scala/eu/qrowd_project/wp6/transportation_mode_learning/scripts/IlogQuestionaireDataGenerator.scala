@@ -30,15 +30,22 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
           // create the output dirs
           Files.createDirectories(outputDir)
 
-          // iterate over dates, for debugging - TODO remove
-          val formatter = DateTimeFormatter.ofPattern("yyyyMMdd", Locale.ENGLISH)
-          var startDate = java.time.LocalDate.parse("20180301", formatter)
-          val endDate = java.time.LocalDate.parse("20180331", formatter)
-          while (startDate.isBefore(endDate)) {
-            run(config.copy(
-              date = startDate.format(formatter),
-              out = new File(config.out.getParent + File.separator + startDate.format(formatter) + ".json")))
-            startDate = startDate.plusDays(1)
+          if (config.testMode) {
+
+            users = trentoTestUsers
+            // iterate over dates, for debugging - TODO remove
+            val formatter = DateTimeFormatter.ofPattern("yyyyMMdd", Locale.ENGLISH)
+            var startDate = java.time.LocalDate.parse("20180301", formatter)
+            val endDate = java.time.LocalDate.parse("20180331", formatter)
+            logger.warn(s"Test mode enabled. Processing all data between ${startDate.format(formatter)} and ${endDate.format(formatter)}!")
+            while (startDate.isBefore(endDate)) {
+              run(config.copy(
+                date = startDate.format(formatter),
+                out = new File(config.out.getParent + File.separator + startDate.format(formatter) + ".json")))
+              startDate = startDate.plusDays(1)
+            }
+          } else {
+            run(config)
           }
         } catch {
           case e: IOException => logger.error("Cannot create output directories.", e)
@@ -57,16 +64,15 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
   private val formatter = DateTimeFormatter.ofPattern("yyyyMMdd")
 
   // connect to Trento Cassandra DB
-  private lazy val cassandra = CassandraDBConnector(
-    // restriction of users TODO remove
-    Seq("ecfb0929250fb6dda66a4065441230ab27f094e5", "d429974540bfd38c3367fe9f0c8682775ff4fa18")
-  )
+  val trentoTestUsers = Seq("ecfb0929250fb6dda66a4065441230ab27f094e5", "d429974540bfd38c3367fe9f0c8682775ff4fa18")
+  var users: Seq[String] = Seq()
+  private lazy val cassandra = CassandraDBConnector(users)
 
   private def run(config: Config) = {
     //    val inputPath = args(0)
     //    val data = loadDataFromDisk(inputPath, date)
 
-    logger.info(s"processing ILog data of ${config.date} ...")
+    logger.info(s"processing ILog data of date ${config.date} ...")
 
     val date = config.date
     val outputPath = config.out.getAbsolutePath
@@ -139,7 +145,6 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
     }
 
     // write as JSON to disk
-    println(s"writin to $outputPath")
     write(toJson(result), outputPath)
   }
 
@@ -183,7 +188,8 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
 
   case class Config(date: String = today,
                     out: File = outputDir.resolve(today + ".json").toFile,
-                    writeDebugOut: Boolean = false)
+                    writeDebugOut: Boolean = false,
+                    testMode: Boolean = false)
 
   private val parser = new scopt.OptionParser[Config]("IlogQuestionaireDataGenerator") {
     head("IlogQuestionaireDataGenerator", "0.1.0")
@@ -208,6 +214,12 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
       .action((x, c) =>
       c.copy(writeDebugOut = true)).text("If enabled, debug information such as GeoJson documents of trips will be written " +
       "to disk. The path of the output is /SYSTEM_TEMP_FOLDER/ilog-questionaire/debug/")
+
+    opt[Unit]("test")
+      .optional()
+      //      .hidden()
+      .action((x, c) =>
+      c.copy(testMode = true)).text("test mode which iterates over all days of March 2018 with two fixed users.")
 
     help("help").text("prints this usage text")
 

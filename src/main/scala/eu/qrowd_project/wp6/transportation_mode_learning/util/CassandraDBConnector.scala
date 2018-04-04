@@ -66,7 +66,7 @@ class CassandraDBConnector(val userIds: Seq[String] = Seq()) {
     val keyspaces = cluster.getMetadata.getKeyspaces
 
     // loop over each keyspace
-    for (keyspace <- keyspaces if userIds.contains(keyspace.getName)) { //Get the keyspace name that is what we need to perform queries. Since 1 keyspace = 1 user, the keyspace name is the user uniqueidentifier (salt)
+    for (keyspace <- keyspaces if userIds.isEmpty || userIds.contains(keyspace.getName)) { //Get the keyspace name that is what we need to perform queries. Since 1 keyspace = 1 user, the keyspace name is the user uniqueidentifier (salt)
       val usersalt = keyspace.getName
 
       try {
