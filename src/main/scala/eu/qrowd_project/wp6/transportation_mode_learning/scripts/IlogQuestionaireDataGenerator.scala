@@ -1,9 +1,9 @@
 package eu.qrowd_project.wp6.transportation_mode_learning.scripts
 
-import java.io.File
+import java.io.{File, IOException}
+import java.nio.file.{Files, Paths}
+import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
-import java.time.{LocalDate, LocalDateTime}
 import java.util.Locale
 
 import eu.qrowd_project.wp6.transportation_mode_learning.util._
@@ -27,7 +27,9 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
       case Some(config) =>
 
         try {
-          new File(config.out.getParent).mkdirs()
+          // create the output dirs
+          Files.createDirectories(outputDir)
+
           // iterate over dates, for debugging - TODO remove
           val formatter = DateTimeFormatter.ofPattern("yyyyMMdd", Locale.ENGLISH)
           var startDate = java.time.LocalDate.parse("20180301", formatter)
@@ -39,6 +41,7 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
             startDate = startDate.plusDays(1)
           }
         } catch {
+          case e: IOException => logger.error("Cannot create output directories.", e)
           case t: Throwable => logger.error("Failed to process the ILog data.", t)
         } finally {
           // stop Cassandra here because when iterating we want to do it only once
@@ -84,6 +87,27 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
         val trips = tripDetector.find(trajectory)
         logger.info(s"#trips: ${trips.size}")
 
+        // debug output if enabled
+        if(config.writeDebugOut) {
+          val dir = outputDir.resolve(s"debug/$date/$userId/")
+          dir.toFile.mkdirs()
+
+          // write trajectory as GeoJSON
+          if(trajectory.nonEmpty) {
+            val lines = GeoJSONConverter.toGeoJSONLineString(trajectory)
+            val points = GeoJSONConverter.toGeoJSONPoints(trajectory)
+            val linesWithPoints = GeoJSONConverter.merge(lines, points)
+            write(lines, dir.resolve("lines.json").toString)
+            write(points, dir.resolve("points.json").toString)
+            write(linesWithPoints, dir.resolve("lines_with_points.json").toString)
+          }
+
+          // write trips as GeoJSON
+          trips
+            .zipWithIndex
+            .foreach(trip => write(toGeoJson(trip._1), dir.resolve(s"trip_${trip._2}.json").toString))
+        }
+
         // get possible POIs at start and end of trip
         trips.map(trip => {
           val poisStart = poiRetrieval.getPOIsAt(trip._1, 0.1)
@@ -96,7 +120,19 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
         None
     }
 
-    // write to JSON
+    // write as JSON to disk
+    write(toJson(result), outputPath)
+  }
+
+  private def toGeoJson(trip: (TrackPoint, TrackPoint, Seq[TrackPoint])) = {
+    val pointsJson = GeoJSONConverter.merge(
+      GeoJSONConverter.toGeoJSONPoints(Seq(trip._1), Map("marker-symbol" -> "s")),
+      GeoJSONConverter.toGeoJSONPoints(Seq(trip._2), Map("marker-symbol" -> "e")))
+    val tripJson = GeoJSONConverter.toGeoJSONLineString(trip._3)
+    GeoJSONConverter.merge(pointsJson, tripJson)
+  }
+
+  private def toJson(result: Seq[(String, TrackPoint, POI, TrackPoint, POI)]) = {
     val json = Json.createArrayBuilder()
     result.foreach {
       case (userId: String, start: TrackPoint, startPOI: POI, end: TrackPoint, endPOI: POI) =>
@@ -116,39 +152,17 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
           .add("points", points))
 
     }
-    write(json.build(), outputPath)
+    json.build()
   }
 
-  private def splitByDay(entries: Seq[TrackPoint]): Seq[(LocalDateTime, Seq[TrackPoint])] = {
-    var list = Seq[(LocalDateTime, Seq[TrackPoint])]()
-
-    val firstDay = entries.head.timestamp.toLocalDateTime.truncatedTo(ChronoUnit.DAYS)
-    val lastDay = entries.last.timestamp.toLocalDateTime.plusDays(1).truncatedTo(ChronoUnit.DAYS)
-    println(s"First day: $firstDay")
-    println(s"Last day: $lastDay")
-
-    var currentDay = firstDay
-    while (currentDay.isBefore(lastDay)) {
-      val nextDay = currentDay.plusDays(1)
-
-      val currentEntries = entries.filter(e => {
-        e.timestamp.toLocalDateTime.isAfter(currentDay) && e.timestamp.toLocalDateTime.isBefore(nextDay)
-      })
-      println(s"$currentDay  --  $nextDay: ${currentEntries.size} entries")
-
-      list :+= (currentDay, currentEntries)
-
-      currentDay = nextDay
-    }
-    //    (list.indices zip list).toMap
-    list
-  }
 
   val today = LocalDate.now().format(formatter)
+  val tmpDir = Paths.get(System.getProperty("java.io.tmpdir"))
+  val outputDir = tmpDir.resolve("ilog-questionaire")
 
   case class Config(date: String = today,
-                    out: File = new File(System.getProperty("java.io.tmpdir")
-                      + File.separator + "ilog-questionaire" + File.separator + today + ".json"))
+                    out: File = outputDir.resolve(today + ".json").toFile,
+                    writeDebugOut: Boolean = false)
 
   private val parser = new scopt.OptionParser[Config]("IlogQuestionaireDataGenerator") {
     head("IlogQuestionaireDataGenerator", "0.1.0")
@@ -166,6 +180,15 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
       .action((x, c) =>
         c.copy(date = x)).text("Date to be processed (yyyyMMdd), e.g. 20180330 . " +
       "If no date is provided, we'll use the current date.")
+
+    opt[Unit]( "debug")
+      .optional()
+      .hidden()
+      .action((x, c) =>
+        c.copy(writeDebugOut = true)).text("If enabled, debug information such as GeoJson documents of trips will be written " +
+      "to disk. The path of the output is /SYSTEM_TEMP_FOLDER/ilog-questionaire/debug/")
+
+    help("help").text("prints this usage text")
 
   }
 

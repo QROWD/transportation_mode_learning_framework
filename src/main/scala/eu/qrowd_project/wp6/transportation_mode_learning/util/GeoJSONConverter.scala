@@ -85,7 +85,9 @@ object GeoJSONConverter {
         .add("type", "LineString")
         .add("coordinates", coordinates)
       )
-      .add("properties", Json.createObjectBuilder().add("timestamp", entries.head.timestamp.toString))
+      .add("properties", Json.createObjectBuilder()
+        .add("timestamp-start", entries.head.timestamp.toString)
+        .add("timestamp-end", entries.last.timestamp.toString))
 
     Json.createObjectBuilder()
       .add("type", "FeatureCollection")
