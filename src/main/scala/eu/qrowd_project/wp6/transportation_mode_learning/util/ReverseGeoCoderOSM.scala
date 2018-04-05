@@ -34,7 +34,7 @@ class ReverseGeoCoderOSM(
         .param("format", "jsonv2")
         .param("lat", lat.toString)
         .param("lon", long.toString)
-        .param("zoom", 15.toString)
+        .param("zoom", 16.toString)
         .param("addressdetails", 1.toString)
         .param("extratags", 1.toString)
         .execute(is => {
