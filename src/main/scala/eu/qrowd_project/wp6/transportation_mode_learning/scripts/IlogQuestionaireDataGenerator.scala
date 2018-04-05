@@ -2,7 +2,6 @@ package eu.qrowd_project.wp6.transportation_mode_learning.scripts
 
 import java.io.{File, IOException}
 import java.nio.file.{Files, Paths}
-import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -46,12 +45,12 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
             users = trentoTestUsers
             // iterate over dates, for debugging - TODO remove
             val formatter = DateTimeFormatter.ofPattern("yyyyMMdd", Locale.ENGLISH)
-            var startDate = java.time.LocalDate.parse("20180301", formatter)
-            val endDate = java.time.LocalDate.parse("20180331", formatter)
+            var startDate = config.testStart
+            val endDate = config.testEnd
             logger.warn(s"Test mode enabled. Processing all data between ${startDate.format(formatter)} and ${endDate.format(formatter)}!")
-            while (startDate.isBefore(endDate)) {
+            while (startDate == endDate || startDate.isBefore(endDate)) {
               run(config.copy(
-                date = startDate.format(formatter),
+                date = startDate,
                 out = new File(config.out.getParent + File.separator + startDate.format(formatter) + ".json")))
               startDate = startDate.plusDays(1)
             }
@@ -89,7 +88,7 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
     val outputPath = config.out.getAbsolutePath
 
     // get the data for the given day, i.e. (user, entries)
-    val data = cassandra.readData(date)
+    val data = cassandra.readData(date.format(formatter))
 
     // detect trips per each user
     val result = data.flatMap {
@@ -208,11 +207,11 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
   }
 
 
-  private val today = LocalDate.now().format(formatter)
+  private val today = LocalDate.now()
   private val tmpDir = Paths.get(System.getProperty("java.io.tmpdir"))
   private val outputDir = tmpDir.resolve("ilog-questionaire")
 
-  case class Config(date: String = today,
+  case class Config(date: LocalDate = today,
                     out: File = outputDir.resolve(today + ".json").toFile,
                     writeDebugOut: Boolean = false,
                     testMode: Boolean = false,
@@ -233,7 +232,7 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
       text("Path to output JSON file containing the start and end point of each trip." +
         "If no path is provided, data will be written to /SYSTEM_TEMP_FOLDER/ilog-questionaire/{$date}.json")
 
-    opt[String]('d', "date")
+    opt[LocalDate]('d', "date")
       //      .required()
       .valueName("<yyyyMMdd>")
       .action((x, c) =>
