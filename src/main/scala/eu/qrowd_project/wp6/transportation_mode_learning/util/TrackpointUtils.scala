@@ -1,9 +1,6 @@
 package eu.qrowd_project.wp6.transportation_mode_learning.util
 
 import java.time.Duration
-import java.util.concurrent.TimeUnit
-
-import scala.concurrent.duration.TimeUnit
 
 /**
   * @author Lorenz Buehmann
@@ -43,15 +40,63 @@ object TrackpointUtils {
     metersPerSecond * 3.6
   }
 
+  /**
+    * This formula is for the initial bearing (sometimes referred to as forward azimuth) which if followed in a
+    * straight line along a great-circle arc will take you from the start point to the end point.
+    *
+    * @param start the start point
+    * @param end   the end point
+    * @return bearing in degrees
+    */
+  def bearing(start: TrackPoint, end: TrackPoint): Double = {
+    val y = Math.sin(end.long - start.long) * Math.cos(end.lat)
+    val x = Math.cos(start.lat) * Math.sin(end.lat) -
+      Math.sin(start.lat) * Math.cos(end.lat) * Math.cos(end.long - start.long)
+    Math.atan2(y, x).toDegrees
+  }
+
   def haversineDistanceSum[P <: Point](points: Seq[P]): Double =
-    points.sliding(2).collect { case Seq(a,b) => HaversineDistance.compute(a, b)}.sum
+    points.sliding(2).collect { case Seq(a, b) => HaversineDistance.compute(a, b) }.sum
 
   /**
-    * The time difference in seconds.
-    * @param begin
-    * @param end
-    * @return
+    * The time difference in seconds between start and end point.
+    *
+    * @param start the start point
+    * @param end   the end point
+    * @return time difference ins seconds
     */
-  def timeDiff(begin: TrackPoint, end: TrackPoint, unit: TimeUnit = TimeUnit.SECONDS): Long =
-    Duration.between(begin.timestamp.toLocalDateTime, end.timestamp.toLocalDateTime).getSeconds
+  def timeDiff(start: TrackPoint, end: TrackPoint): Long =
+    Duration.between(start.timestamp.toLocalDateTime, end.timestamp.toLocalDateTime).getSeconds
+
+  /**
+    * The velocity change rate (VCR), is a concept different from acceleration. It is a
+    * statistical indicator that takes into account the magnitude of the velocity, i.e. a
+    * change of 20 km/h from 100 km/h is different from the same change from a speed of 30 km/h.
+    * VCR is calculated by dividing the change in velocity by the velocity of the first point.
+    *
+    * @param p1
+    * @param p2
+    * @param p3
+    * @return velocity change rate
+    */
+  def velocityChangeRate(p1: TrackPoint, p2: TrackPoint, p3: TrackPoint): Double = {
+    val v1 = avgSpeed(p2, p1)
+    val v2 = avgSpeed(p3, p2)
+
+    velocityChangeRate(v1, v2)
+  }
+
+  /**
+    * The velocity change rate (VCR), is a concept different from acceleration. It is a
+    * statistical indicator that takes into account the magnitude of the velocity, i.e. a
+    * change of 20 km/h from 100 km/h is different from the same change from a speed of 30 km/h.
+    * VCR is calculated by dividing the change in velocity by the velocity of the first point.
+    *
+    * @param v1 velocity of first point
+    * @param v2 velocity of first point
+    * @return velocity change rate
+    */
+  def velocityChangeRate(v1: Double, v2: Double): Double = {
+    (v2 - v1) / v2
+  }
 }
