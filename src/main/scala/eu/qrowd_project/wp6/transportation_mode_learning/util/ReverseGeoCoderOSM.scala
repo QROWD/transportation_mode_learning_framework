@@ -1,25 +1,40 @@
 package eu.qrowd_project.wp6.transportation_mode_learning.util
 
+import java.util.concurrent.{Executors, ScheduledExecutorService, TimeUnit}
+
+import javax.json.{Json, JsonObject}
+import scalaj.http.Http
+import java.util.concurrent.Executors
+
 import scala.util.Try
 
-import javax.json.Json
-import scalaj.http.Http
+import org.aksw.jena_sparql_api.delay.extra.DelayerDefault
 
 /**
-  * @author Lorenz Buehmann
+  * A Nominatim based reverse Geo coder.
+  *
+  * @param baseURL base URL of Nominatim service
+  * @param delayDuration duration of delay between requests
+  * @param delayTimeUnit the time unit of the delay
   */
-object ReverseGeoCoderOSM {
+class ReverseGeoCoderOSM(
+                          val baseURL: String = "https://nominatim.openstreetmap.org/reverse",
+                          delayDuration: Long = 1,
+                          delayTimeUnit: TimeUnit = TimeUnit.SECONDS)
+  extends DelayerDefault(delayTimeUnit.toMillis(delayDuration)) {
 
-  val BASE_URL = "https://nominatim.openstreetmap.org/reverse"
+  val executorService: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor
 
 
-  def find(long: Double, lat: Double) = {
+  def find(long: Double, lat: Double): Try[JsonObject] = {
+    doDelay()
+
     Try(
-      Http(BASE_URL)
+      Http(baseURL)
         .param("format", "jsonv2")
         .param("lat", lat.toString)
         .param("lon", long.toString)
-        .param("zoom", 17.toString)
+        .param("zoom", 15.toString)
         .param("addressdetails", 1.toString)
         .param("extratags", 1.toString)
         .execute(is => {
@@ -30,8 +45,21 @@ object ReverseGeoCoderOSM {
         }).body
     )
   }
+}
+
+/**
+  * @author Lorenz Buehmann
+  */
+object ReverseGeoCoderOSM {
+
+  def apply(
+             baseURL: String = "https://nominatim.openstreetmap.org/reverse",
+             delayDuration: Long = 1,
+             delayTimeUnit: TimeUnit = TimeUnit.SECONDS)
+  : ReverseGeoCoderOSM = new ReverseGeoCoderOSM(baseURL)
+
 
   def main(args: Array[String]): Unit = {
-    println(ReverseGeoCoderOSM.find(11.13813, 46.04137))
+    println(ReverseGeoCoderOSM().find(11.13813, 46.04137))
   }
 }

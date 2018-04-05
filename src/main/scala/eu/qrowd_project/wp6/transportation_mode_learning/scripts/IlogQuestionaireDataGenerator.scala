@@ -2,13 +2,16 @@ package eu.qrowd_project.wp6.transportation_mode_learning.scripts
 
 import java.io.{File, IOException}
 import java.nio.file.{Files, Paths}
+import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 import com.typesafe.config.ConfigFactory
 import eu.qrowd_project.wp6.transportation_mode_learning.util._
 import javax.json.Json
+import scopt.Read
 
 /**
   * The main entry class for processing the ILog data of the given day.
@@ -22,7 +25,12 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
   private val tripDetector = new TripDetection()
 
   private val appConfig = ConfigFactory.load()
-  private val poiRetrieval = POIRetrieval(appConfig.getString("poi_retrieval.endpoint_url"))
+  private lazy val poiRetrieval = POIRetrieval(appConfig.getString("poi_retrieval.lgd_lookup.endpoint_url"))
+  private lazy val reverseGeoCoder = ReverseGeoCoderOSM(
+    appConfig.getString("poi_retrieval.reverse_geo_coding.base_url"),
+    appConfig.getLong("poi_retrieval.reverse_geo_coding.delay"),
+    TimeUnit.SECONDS
+  )
 
   def main(args: Array[String]): Unit = {
 
@@ -134,12 +142,8 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
 
         // get possible POIs at start and end of trip
         trips.map(trip => {
-          val radius = appConfig.getDouble("poi_retrieval.distance_radius")
-          val allPOIsStart = poiRetrieval.getPOIsAt(trip.start, radius)
-          val allPOIsEnd = poiRetrieval.getPOIsAt(trip.end, radius)
-
-          val poiStart = allPOIsStart.headOption.getOrElse(UNKNOWN_POI)
-          val poiEnd = allPOIsEnd.headOption.getOrElse(UNKNOWN_POI)
+          val poiStart = geoLookup(trip.start)
+          val poiEnd = geoLookup(trip.end)
 
           (userId, trip.start, poiStart, trip.end, poiEnd)
         })
@@ -150,6 +154,24 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
 
     // write as JSON to disk
     write(toJson(result), outputPath)
+  }
+
+  private def geoLookup(p: TrackPoint): POI = {
+
+    if(appConfig.getString("poi_retrieval.mode") == "lgd") {
+      val radius = appConfig.getDouble("poi_retrieval.distance_radius")
+      val pois = poiRetrieval.getPOIsAt(p, radius)
+
+      pois.headOption.getOrElse(UNKNOWN_POI)
+    } else {
+      val json = reverseGeoCoder.find(p.long, p.lat)
+
+      if(json.isSuccess) {
+        POI("", label = json.get.getString("display_name"), "", "")
+      } else {
+        UNKNOWN_POI
+      }
+    }
   }
 
   private def toGeoJson(trip: Trip) = {
@@ -193,7 +215,13 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
   case class Config(date: String = today,
                     out: File = outputDir.resolve(today + ".json").toFile,
                     writeDebugOut: Boolean = false,
-                    testMode: Boolean = false)
+                    testMode: Boolean = false,
+                    testStart: LocalDate = LocalDate.now(),
+                    testEnd: LocalDate = LocalDate.now())
+
+  import scopt.Read.reads
+  implicit val dateRead: Read[LocalDate] = reads(x => LocalDate.parse(x, DateTimeFormatter.ofPattern("yyyyMMdd", Locale.ENGLISH)))
+
 
   private val parser = new scopt.OptionParser[Config]("IlogQuestionaireDataGenerator") {
     head("IlogQuestionaireDataGenerator", "0.1.0")
@@ -224,6 +252,18 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
       //      .hidden()
       .action((x, c) =>
       c.copy(testMode = true)).text("test mode which iterates over all days of March 2018 with two fixed users.")
+
+    opt[LocalDate]("test-start")
+      .optional()
+      .hidden()
+      .action((x, c) =>
+        c.copy(testStart = x)).text("test mode start date")
+
+    opt[LocalDate]("test-end")
+      .optional()
+      .hidden()
+      .action((x, c) =>
+        c.copy(testEnd = x)).text("test mode end date")
 
     help("help").text("prints this usage text")
 
