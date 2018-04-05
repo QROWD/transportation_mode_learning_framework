@@ -19,10 +19,10 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
 
   val logger = com.typesafe.scalalogging.Logger("ILog Questionaire Data Generator")
 
-  private val poiRetrieval = POIRetrieval("http://linkedgeodata.org/sparql")
   private val tripDetector = new TripDetection()
 
-  private lazy val appConfig = ConfigFactory.load()
+  private val appConfig = ConfigFactory.load()
+  private val poiRetrieval = POIRetrieval(appConfig.getString("poi_retrieval.endpoint_url"))
 
   def main(args: Array[String]): Unit = {
 
