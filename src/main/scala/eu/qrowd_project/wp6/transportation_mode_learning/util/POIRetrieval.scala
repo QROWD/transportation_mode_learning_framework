@@ -1,18 +1,22 @@
 package eu.qrowd_project.wp6.transportation_mode_learning.util
 
-import org.aksw.jena_sparql_api.core.{FluentQueryExecutionFactory, QueryExecutionFactory}
-import org.apache.jena.query.{ParameterizedSparqlString, ResultSetCloseable, ResultSetFactory, ResultSetFormatter}
 import scala.collection.JavaConversions._
 
+import org.aksw.jena_sparql_api.core.{FluentQueryExecutionFactory, QueryExecutionFactory}
+import org.apache.jena.query.{ParameterizedSparqlString, ResultSetCloseable, ResultSetFormatter}
+
 /**
+  * Retrieval of POIs via SPARQL queries on LinkedGeoData endpoint.
+  *
+  * @param endpointURL the endpoint URL
   * @author Lorenz Buehmann
   */
-class POIRetrieval(val url: String) {
+class POIRetrieval(val endpointURL: String) {
 
   val logger = com.typesafe.scalalogging.Logger("POI Retrieval (SPARQL@LGD)")
 
   lazy val qef: QueryExecutionFactory = FluentQueryExecutionFactory
-    .http(url)
+    .http(endpointURL)
     .create()
 
   lazy val queryTemplate = new ParameterizedSparqlString(
@@ -21,8 +25,8 @@ class POIRetrieval(val url: String) {
       |Prefix geom:<http://geovocab.org/geometry#>
       |Prefix ogc: <http://www.opengis.net/ont/geosparql#>
       |PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-      |SELECT ?s ?l ?type (<bif:st_x>(?point) as ?long) (<bif:st_y>(?point) as ?lat) WHERE {
-      |    ?s a lgdo:Amenity ; a <http://linkedgeodata.org/meta/Node> ;
+      |SELECT ?s ?l ?type ?point WHERE {
+      |    ?s a lgdo:Amenity ;
       |    rdfs:label ?l ;
       |    geom:geometry [
       |        ogc:asWKT ?point
@@ -62,8 +66,9 @@ class POIRetrieval(val url: String) {
           qs.getResource("s").getURI,
           qs.getLiteral("l").getLexicalForm,
           qs.getResource("type").getURI,
-          qs.getLiteral("long").getDouble,
-          qs.getLiteral("lat").getDouble))
+          qs.getLiteral("point").getLexicalForm
+        )
+      )
       logger.info(s"got ${pois.size} POI candidates")
 
       pois

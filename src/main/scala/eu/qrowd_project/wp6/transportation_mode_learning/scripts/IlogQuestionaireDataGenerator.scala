@@ -160,7 +160,7 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
     GeoJSONConverter.merge(pointsJson, tripJson)
   }
 
-  private val UNKNOWN_POI = POI("", "UNKNOWN", "", -1, -1)
+  private val UNKNOWN_POI = POI("", "UNKNOWN", "", "")
 
   private def toJson(result: Seq[(String, TrackPoint, POI, TrackPoint, POI)]) = {
     val json = Json.createArrayBuilder()
