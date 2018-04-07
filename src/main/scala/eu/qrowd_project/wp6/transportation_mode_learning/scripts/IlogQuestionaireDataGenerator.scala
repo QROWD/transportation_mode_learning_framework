@@ -28,6 +28,7 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
     appConfig.getInt("stop_detection.window_distance.window_size"),
     appConfig.getInt("stop_detection.window_distance.step_size"),
     appConfig.getDouble("stop_detection.window_distance.distance"),
+    appConfig.getInt("stop_detection.window_distance.min_nr_of_segments"),
     appConfig.getInt("stop_detection.window_distance.noise_segments")
   )
 

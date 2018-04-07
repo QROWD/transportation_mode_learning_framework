@@ -11,7 +11,9 @@ import scala.collection.mutable
   * Created by patrick on 4/7/18.
   */
 class WindowDistanceTripDetection(windowSize: Int, stepSize: Int,
-                                  distanceThresholdInKm: Double, noiseSegments: Int = 4) {
+                                  distanceThresholdInKm: Double,
+                                  min_nr_of_segments: Int = 5,
+                                  noiseSegments: Int = 4) {
   val logger = com.typesafe.scalalogging.Logger("WindowDistanceTripDetection")
   val secsPerDay: Int = 60 * 60 * 24
 
@@ -152,7 +154,7 @@ class WindowDistanceTripDetection(windowSize: Int, stepSize: Int,
 //      }
 //    }
 
-    trips
+    trips.filter(_.trace.size >= min_nr_of_segments)
   }
 
   private def getSecondsOfDay(timestamp: Timestamp): Double = {
