@@ -21,14 +21,15 @@ class WindowDistanceTripDetection(windowSize: Int, stepSize: Int, distanceInKm: 
     }
 
     // sort by time
-    val points = trajectory.sortWith(_ < _)
+    val points: Seq[TrackPoint] = trajectory.sortWith(_ < _)
 
     val bins = mutable.Map[Int, (TrackPoint, TrackPoint)]()
     for (i <- 0 until secsPerDay - windowSize by stepSize) {
       bins.put(i, null)
     }
 
-    var candidateKeys: mutable.Seq[Int] = bins.keys.to[mutable.ArraySeq].sorted
+    var candidateKeys = mutable.ArraySeq[Int]()
+    candidateKeys ++= bins.keys
 
     for (point <- points) {
       val secsOfDay = getSecondsOfDay(point.timestamp)
@@ -36,7 +37,7 @@ class WindowDistanceTripDetection(windowSize: Int, stepSize: Int, distanceInKm: 
       /* Since points are sorted by date we can throw away all key candidates
        * that are smaller than the current point's timestamp because they won't
        * be used in the future */
-      while (candidateKeys.head < secsOfDay) {
+      while (candidateKeys.nonEmpty && candidateKeys.head < secsOfDay) {
         candidateKeys = candidateKeys.tail
       }
 
@@ -54,33 +55,77 @@ class WindowDistanceTripDetection(windowSize: Int, stepSize: Int, distanceInKm: 
       }
     }
 
-    val pointsWithCategories = bins.values.toList.distinct
-      .map(pair => (pair._1, HaversineDistance.compute(pair._1, pair._2) >= distanceInKm))
+    var pointsWithCategories: List[(TrackPoint, Boolean)] = bins.values.toList.distinct
+      .filter(_ != null)
+      .map(pair => (pair._1, if (HaversineDistance.compute(pair._1, pair._2) >= distanceInKm)) 1 else 0)
+    val availableCategoryPoints = pointsWithCategories.map(_._1)
+    val tmp: Seq[(TrackPoint, Int)] = points.map(p => {
+      if (availableCategoryPoints.contains(p)) {
+        val idx = availableCategoryPoints.indexOf(p)
+        val isTrip: Int = if (pointsWithCategories(idx)._2) 1 else 0
 
-    var isTrip = pointsWithCategories.head._2
+        (p, isTrip)
+      } else {
+        (p, -1)
+      }
+    })
+
+    var beenWithinTrip: Int = tmp.head._2
     var lastTrip = Seq.empty[TrackPoint]
     var trips = Seq.empty[Trip]
 
-    for (pointWCat <- pointsWithCategories) {
-      val currPoint = pointWCat._1
-      val currPointPartOfTrip = pointWCat._2
-      (isTrip, currPointPartOfTrip) match {
-        case (true, false) =>
+    for (pointWithCat <- tmp) {
+      val currPoint = pointWithCat._1
+      // -1: as previous, 0: not part of trip, 1: part of trip
+      val currPointPartOfTrip = pointWithCat._2
+
+      (beenWithinTrip, currPointPartOfTrip) match {
+        case (1, -1) =>
+          // still within a trip sequence
+          lastTrip = lastTrip ++ Seq(currPoint)
+        case (1, 0) =>
           // found the end of a trip
           trips = trips ++ Seq(NonClusterTrip(lastTrip.head, lastTrip.last, lastTrip))
           lastTrip = Seq.empty[TrackPoint]
-          isTrip = false
-        case (true, true) =>
+          beenWithinTrip = 0
+        case (1, 1) =>
           // still within a trip sequence
           lastTrip = lastTrip ++ Seq(currPoint)
-        case (false, true) =>
+        case (0, -1) =>
+          // still within a non-trip sequence --> nothing to do
+        case (0, 0) =>
+          // still within a non-trip sequence --> nothing to do
+        case (0, 1) =>
           // found the beginning of a new trip
           lastTrip = Seq(currPoint)
-          isTrip = true
-        case (false, false) =>
-          // within a non-trip sequence --> nothing to do
+          beenWithinTrip = 1
       }
     }
+
+//    var isTrip = pointsWithCategories.head._2
+//    var lastTrip = Seq.empty[TrackPoint]
+//    var trips = Seq.empty[Trip]
+//
+//    for (pointWCat <- pointsWithCategories) {
+//      val currPoint = pointWCat._1
+//      val currPointPartOfTrip = pointWCat._2
+//      (isTrip, currPointPartOfTrip) match {
+//        case (true, false) =>
+//          // found the end of a trip
+//          trips = trips ++ Seq(NonClusterTrip(lastTrip.head, lastTrip.last, lastTrip))
+//          lastTrip = Seq.empty[TrackPoint]
+//          isTrip = false
+//        case (true, true) =>
+//          // still within a trip sequence
+//          lastTrip = lastTrip ++ Seq(currPoint)
+//        case (false, true) =>
+//          // found the beginning of a new trip
+//          lastTrip = Seq(currPoint)
+//          isTrip = true
+//        case (false, false) =>
+//          // within a non-trip sequence --> nothing to do
+//      }
+//    }
 
     trips
   }

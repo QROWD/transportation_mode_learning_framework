@@ -149,6 +149,7 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
                       GeoJSONConverter.toGeoJSONLineString(Seq(t.start) ++ t.trace ++ Seq(t.end))
                     ),
                     dir.resolve(s"trip_${index}_with_clusters.json").toString)
+                case _ =>
               }
             }
         }
