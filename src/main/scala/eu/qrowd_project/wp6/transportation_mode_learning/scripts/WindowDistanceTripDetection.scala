@@ -57,7 +57,7 @@ class WindowDistanceTripDetection(windowSize: Int, stepSize: Int, distanceInKm: 
 
     var pointsWithCategories: List[(TrackPoint, Boolean)] = bins.values.toList.distinct
       .filter(_ != null)
-      .map(pair => (pair._1, if (HaversineDistance.compute(pair._1, pair._2) >= distanceInKm)) 1 else 0)
+      .map(pair => (pair._1, HaversineDistance.compute(pair._1, pair._2) >= distanceInKm))
     val availableCategoryPoints = pointsWithCategories.map(_._1)
     val tmp: Seq[(TrackPoint, Int)] = points.map(p => {
       if (availableCategoryPoints.contains(p)) {
