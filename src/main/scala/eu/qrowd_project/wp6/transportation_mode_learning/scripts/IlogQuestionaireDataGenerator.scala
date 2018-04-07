@@ -26,8 +26,8 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
   private val appConfig = ConfigFactory.load()
   private lazy val poiRetrieval = POIRetrieval(appConfig.getString("poi_retrieval.lgd_lookup.endpoint_url"))
   private lazy val reverseGeoCoder = ReverseGeoCoderOSM(
-    appConfig.getString("poi_retrieval.reverse_geo_coding.base_url"),
-    appConfig.getLong("poi_retrieval.reverse_geo_coding.delay"),
+    appConfig.getString("address_retrieval.reverse_geo_coding.base_url"),
+    appConfig.getLong("address_retrieval.reverse_geo_coding.delay"),
     TimeUnit.SECONDS
   )
 
@@ -141,10 +141,13 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
 
         // get possible POIs at start and end of trip
         trips.map(trip => {
-          val poiStart = geoLookup(trip.start)
-          val poiEnd = geoLookup(trip.end)
+          val poiStart = poiLookup(trip.start)
+          val poiEnd = poiLookup(trip.end)
 
-          (userId, trip.start, poiStart, trip.end, poiEnd)
+          val addressStart = addressLookup(trip.start)
+          val addressEnd = addressLookup(trip.end)
+
+          (userId, trip.start, addressStart, poiStart, trip.end, addressEnd, poiEnd)
         })
       case other =>
         println(other)
@@ -155,21 +158,25 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
     write(toJson(result), outputPath)
   }
 
-  private def geoLookup(p: TrackPoint): POI = {
+  private def poiLookup(p: TrackPoint): POI = {
+    // POI retrieval
+    val radius = appConfig.getDouble("poi_retrieval.lgd_lookup.distance_radius")
+    val pois = poiRetrieval.getPOIsAt(p, radius)
 
-    if(appConfig.getString("poi_retrieval.mode") == "lgd") {
-      val radius = appConfig.getDouble("poi_retrieval.distance_radius")
-      val pois = poiRetrieval.getPOIsAt(p, radius)
+    pois.headOption.getOrElse(UNKNOWN_POI)
+  }
 
-      pois.headOption.getOrElse(UNKNOWN_POI)
+  private def addressLookup(p: TrackPoint): Address = {
+    // address retrieval (reverse geo-coding
+    val json = reverseGeoCoder.find(p.long, p.lat)
+
+    if(json.isSuccess) {
+      Address(
+        label=json.get.getString("display_name"),
+        category=json.get.getString("category"),
+        `type`=json.get.getString("type"))
     } else {
-      val json = reverseGeoCoder.find(p.long, p.lat)
-
-      if(json.isSuccess) {
-        POI("", label = json.get.getString("display_name"), "", "")
-      } else {
-        UNKNOWN_POI
-      }
+      UNKNOWN_ADDRESS
     }
   }
 
@@ -182,20 +189,23 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
   }
 
   private val UNKNOWN_POI = POI("", "UNKNOWN", "", "")
+  private val UNKNOWN_ADDRESS = Address("", "UNKNOWN", "")
 
-  private def toJson(result: Seq[(String, TrackPoint, POI, TrackPoint, POI)]) = {
+  private def toJson(result: Seq[(String, TrackPoint, Address, POI, TrackPoint, Address, POI)]) = {
     val json = Json.createArrayBuilder()
     result.foreach {
-      case (userId: String, start: TrackPoint, startPOI: POI, end: TrackPoint, endPOI: POI) =>
+      case (userId: String, start: TrackPoint, startAddress: Address, startPOI: POI, end: TrackPoint, endAddress: Address, endPOI: POI) =>
         val points = Json.createArrayBuilder()
           .add(Json.createObjectBuilder()
             .add("point", Json.createArrayBuilder().add(start.long).add(start.lat))
-            .add("address", startPOI.label)
+            .add("address", startAddress.label)
+            .add("poi", startPOI.label)
             .add("datetime", start.timestamp.toString)
           )
           .add(Json.createObjectBuilder()
             .add("point", Json.createArrayBuilder().add(end.long).add(end.lat))
-            .add("address", endPOI.label)
+            .add("address", endAddress.label)
+            .add("poi", endPOI.label)
             .add("datetime", end.timestamp.toString)
           )
         json.add(Json.createObjectBuilder()

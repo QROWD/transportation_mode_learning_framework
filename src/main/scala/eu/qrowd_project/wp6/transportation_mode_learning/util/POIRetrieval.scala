@@ -48,6 +48,12 @@ class POIRetrieval(val endpointURL: String) {
   }
 
   /**
+    * Raw approximation for now.
+    * TODO: Add more precise formula
+    */
+  private def kmToDegree(km: Double): Double = 1 / 111.0 * km
+
+  /**
     * Get surrounding POIs given coordinates and an optional distance radius
     * @param lat
     * @param long
@@ -57,7 +63,7 @@ class POIRetrieval(val endpointURL: String) {
     queryTemplate.clearParams()
     queryTemplate.setLiteral("p_long", long)
     queryTemplate.setLiteral("p_lat", lat)
-    queryTemplate.setLiteral("radius", radius)
+    queryTemplate.setLiteral("radius", kmToDegree(radius))
 
     logger.info(s"running query\n $queryTemplate")
     TryWith(ResultSetCloseable.closeableResultSet(qef.createQueryExecution(queryTemplate.asQuery())))({ rs =>
@@ -70,6 +76,8 @@ class POIRetrieval(val endpointURL: String) {
         )
       )
       logger.info(s"got ${pois.size} POI candidates")
+
+      pois.foreach(p => logger.info(p.toString))
 
       pois
     })
