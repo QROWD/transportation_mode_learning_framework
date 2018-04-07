@@ -25,11 +25,11 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
 
   private val tripDetector = new TripDetection()
   private val fallbackTripDetector = new WindowDistanceTripDetection(
-    appConfig.getInt("stop_detection.window_distance.window_size"),
-    appConfig.getInt("stop_detection.window_distance.step_size"),
-    appConfig.getDouble("stop_detection.window_distance.distance"),
-    appConfig.getInt("stop_detection.window_distance.min_nr_of_segments"),
-    appConfig.getInt("stop_detection.window_distance.noise_segments")
+    windowSize = appConfig.getInt("stop_detection.window_distance.window_size"),
+    stepSize = appConfig.getInt("stop_detection.window_distance.step_size"),
+    distanceThresholdInKm = appConfig.getDouble("stop_detection.window_distance.distance"),
+    minNrOfSegments = appConfig.getInt("stop_detection.window_distance.min_nr_of_segments"),
+    noiseSegments = appConfig.getInt("stop_detection.window_distance.noise_segments")
   )
 
 
@@ -112,10 +112,10 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
         var trips: Seq[Trip] = tripDetector.find(trajectory)
         logger.info(s"#trips: ${trips.size}")
 
-//        if (trips.isEmpty) {
-//          logger.info("trying fallback algorithm...")
-//          trips = fallbackTripDetector.find(trajectory)
-//        }
+        if (trips.isEmpty) {
+          logger.info("trying fallback algorithm...")
+          trips = fallbackTripDetector.find(trajectory)
+        }
 
         // debug output if enabled
         if (config.writeDebugOut) {
