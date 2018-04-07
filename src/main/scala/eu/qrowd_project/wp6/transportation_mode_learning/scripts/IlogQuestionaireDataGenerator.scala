@@ -27,7 +27,8 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
   private val fallbackTripDetector = new WindowDistanceTripDetection(
     appConfig.getInt("stop_detection.window_distance.window_size"),
     appConfig.getInt("stop_detection.window_distance.step_size"),
-    appConfig.getDouble("stop_detection.window_distance.distance")
+    appConfig.getDouble("stop_detection.window_distance.distance"),
+    appConfig.getInt("stop_detection.window_distance.noise_segments")
   )
 
 

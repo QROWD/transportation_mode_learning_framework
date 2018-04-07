@@ -10,7 +10,8 @@ import scala.collection.mutable
 /**
   * Created by patrick on 4/7/18.
   */
-class WindowDistanceTripDetection(windowSize: Int, stepSize: Int, distanceInKm: Double) {
+class WindowDistanceTripDetection(windowSize: Int, stepSize: Int,
+                                  distanceThresholdInKm: Double, noiseSegments: Int = 4) {
   val logger = com.typesafe.scalalogging.Logger("WindowDistanceTripDetection")
   val secsPerDay: Int = 60 * 60 * 24
 
@@ -47,25 +48,39 @@ class WindowDistanceTripDetection(windowSize: Int, stepSize: Int, distanceInKm: 
           bins(k) = (point, point)
         } else {
           if (point < bin._1) {
+            // timestamp of the point is earlier than the existing one
             bins(k) = (point, bin._2)
           } else if (point > bin._2) {
+            // timestamp of the point is later than the existing one
             bins(k) = (bin._1, point)
           }
         }
       }
     }
 
-    var pointsWithCategories: List[(TrackPoint, Boolean)] = bins.values.toList.distinct
-      .filter(_ != null)
-      .map(pair => (pair._1, HaversineDistance.compute(pair._1, pair._2) >= distanceInKm))
+    var pointsWithCategories: List[(TrackPoint, Boolean)] = bins.values
+      .toList.distinct.filter(_ != null)
+      .map(pair => (pair._1, HaversineDistance.compute(pair._1, pair._2) >= distanceThresholdInKm))
+
     val availableCategoryPoints = pointsWithCategories.map(_._1)
+
     val tmp: Seq[(TrackPoint, Int)] = points.map(p => {
       if (availableCategoryPoints.contains(p)) {
+        // if this point is one of the beginning points of a window...
+
         val idx = availableCategoryPoints.indexOf(p)
+        // ...get the category (i.e. distance in window > distance threshold)
+        // from the respective window:
+        //    1: distance in window > distance threshold --> a trip segment
+        //    0: distance in window <= distance threshold --> not a trip segment
         val isTrip: Int = if (pointsWithCategories(idx)._2) 1 else 0
 
         (p, isTrip)
       } else {
+        // this point is not a beginning point of a window (which can happen
+        // since the step size might be greater 1).
+        // Here the trip segment/not trip segment flag is set to -1 which means
+        // 'don't know'.
         (p, -1)
       }
     })
@@ -73,10 +88,12 @@ class WindowDistanceTripDetection(windowSize: Int, stepSize: Int, distanceInKm: 
     var beenWithinTrip: Int = tmp.head._2
     var lastTrip = Seq.empty[TrackPoint]
     var trips = Seq.empty[Trip]
+    var noiseSegmentsCounter = 0
 
     for (pointWithCat <- tmp) {
       val currPoint = pointWithCat._1
-      // -1: as previous, 0: not part of trip, 1: part of trip
+      // -1: don't know, i.e. same as previous point, 0: not part of trip,
+      // 1: part of trip
       val currPointPartOfTrip = pointWithCat._2
 
       (beenWithinTrip, currPointPartOfTrip) match {
@@ -84,10 +101,18 @@ class WindowDistanceTripDetection(windowSize: Int, stepSize: Int, distanceInKm: 
           // still within a trip sequence
           lastTrip = lastTrip ++ Seq(currPoint)
         case (1, 0) =>
-          // found the end of a trip
-          trips = trips ++ Seq(NonClusterTrip(lastTrip.head, lastTrip.last, lastTrip))
-          lastTrip = Seq.empty[TrackPoint]
-          beenWithinTrip = 0
+          // found the end of a trip or a noise segment
+          if (noiseSegmentsCounter <= noiseSegments) {
+            // non-trip segment considered as noise
+            noiseSegmentsCounter += 1
+            lastTrip = lastTrip ++ Seq(currPoint)
+          } else {
+            // found the end ot a trip
+            trips = trips ++ Seq(NonClusterTrip(lastTrip.head, lastTrip.last, lastTrip))
+            lastTrip = Seq.empty[TrackPoint]
+            beenWithinTrip = 0
+            noiseSegmentsCounter = 0
+          }
         case (1, 1) =>
           // still within a trip sequence
           lastTrip = lastTrip ++ Seq(currPoint)
