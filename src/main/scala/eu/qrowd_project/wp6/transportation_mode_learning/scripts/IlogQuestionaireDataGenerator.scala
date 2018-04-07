@@ -105,7 +105,7 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
 
         // debug output if enabled
         if (config.writeDebugOut) {
-          val dir = outputDir.resolve(s"debug/$date/$userId/")
+          val dir = outputDir.resolve(s"debug/${date.format(formatter)}/$userId/")
           dir.toFile.mkdirs()
 
           // write trajectory as GeoJSON
