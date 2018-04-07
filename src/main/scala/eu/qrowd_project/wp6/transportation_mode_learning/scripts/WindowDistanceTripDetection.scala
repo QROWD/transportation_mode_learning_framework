@@ -1,0 +1,106 @@
+package eu.qrowd_project.wp6.transportation_mode_learning.scripts
+
+import java.sql.Timestamp
+import java.time.LocalDateTime
+
+import eu.qrowd_project.wp6.transportation_mode_learning.util.{HaversineDistance, TrackPoint}
+
+import scala.collection.mutable
+
+/**
+  * Created by patrick on 4/7/18.
+  */
+class WindowDistanceTripDetection(windowSize: Int, stepSize: Int, distanceInKm: Double) {
+  val logger = com.typesafe.scalalogging.Logger("WindowDistanceTripDetection")
+  val secsPerDay: Int = 60 * 60 * 24
+
+  def find(trajectory: Seq[TrackPoint]): Seq[Trip] = {
+    if(trajectory.isEmpty) {
+      logger.warn("could not perform trip detection: empty trajectory")
+      return Seq()
+    }
+
+    // sort by time
+    val points = trajectory.sortWith(_ < _)
+
+    val bins = mutable.Map[Int, (TrackPoint, TrackPoint)]()
+    for (i <- 0 until secsPerDay - windowSize by stepSize) {
+      bins.put(i, null)
+    }
+
+    var candidateKeys: mutable.Seq[Int] = bins.keys.to[mutable.ArraySeq].sorted
+
+    for (point <- points) {
+      val secsOfDay = getSecondsOfDay(point.timestamp)
+
+      /* Since points are sorted by date we can throw away all key candidates
+       * that are smaller than the current point's timestamp because they won't
+       * be used in the future */
+      while (candidateKeys.head < secsOfDay) {
+        candidateKeys = candidateKeys.tail
+      }
+
+      for (k <- candidateKeys.filter(k => k <= secsOfDay && secsOfDay <= (k + windowSize))) {
+        val bin = bins(k)
+        if (bin == null) {
+          bins(k) = (point, point)
+        } else {
+          if (point < bin._1) {
+            bins(k) = (point, bin._2)
+          } else if (point > bin._2) {
+            bins(k) = (bin._1, point)
+          }
+        }
+      }
+    }
+
+    val pointsWithCategories = bins.values.toList.distinct
+      .map(pair => (pair._1, HaversineDistance.compute(pair._1, pair._2) >= distanceInKm))
+
+    var isTrip = pointsWithCategories.head._2
+    var lastTrip = Seq.empty[TrackPoint]
+    var trips = Seq.empty[Trip]
+
+    for (pointWCat <- pointsWithCategories) {
+      val currPoint = pointWCat._1
+      val currPointPartOfTrip = pointWCat._2
+      (isTrip, currPointPartOfTrip) match {
+        case (true, false) =>
+          // found the end of a trip
+          trips = trips ++ Seq(NonClusterTrip(lastTrip.head, lastTrip.last, lastTrip))
+          lastTrip = Seq.empty[TrackPoint]
+          isTrip = false
+        case (true, true) =>
+          // still within a trip sequence
+          lastTrip = lastTrip ++ Seq(currPoint)
+        case (false, true) =>
+          // found the beginning of a new trip
+          lastTrip = Seq(currPoint)
+          isTrip = true
+        case (false, false) =>
+          // within a non-trip sequence --> nothing to do
+      }
+    }
+
+    trips
+  }
+
+  private def getSecondsOfDay(timestamp: Timestamp): Double = {
+    val dateTime = timestamp.toLocalDateTime
+
+    val nanoSecs = dateTime.getNano
+    val secs = dateTime.getSecond
+    val mins = dateTime.getMinute
+    val hours = dateTime.getHour
+
+    (hours * 60 * 60) + (mins * 60) + secs + (nanoSecs / 1000000000.0)
+  }
+
+}
+
+object WindowDistanceTripDetection {
+  def main(args: Array[String]): Unit = {
+    val detector = new WindowDistanceTripDetection(300, 60, 0.17)
+    detector.getSecondsOfDay(Timestamp.valueOf(LocalDateTime.now()))
+  }
+}

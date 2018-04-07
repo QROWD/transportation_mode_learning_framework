@@ -21,9 +21,16 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
 
   val logger = com.typesafe.scalalogging.Logger("ILog Questionaire Data Generator")
 
-  private val tripDetector = new TripDetection()
-
   private val appConfig = ConfigFactory.load()
+
+  private val tripDetector = new TripDetection()
+  private val fallbackTripDetector = new WindowDistanceTripDetection(
+    appConfig.getInt("stop_detection.window_distance.window_size"),
+    appConfig.getInt("stop_detection.window_distance.step_size"),
+    appConfig.getDouble("stop_detection.window_distance.distance")
+  )
+
+
   private lazy val poiRetrieval = POIRetrieval(appConfig.getString("poi_retrieval.lgd_lookup.endpoint_url"))
   private lazy val reverseGeoCoder = ReverseGeoCoderOSM(
     appConfig.getString("address_retrieval.reverse_geo_coding.base_url"),
@@ -100,8 +107,13 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
         logger.info(s"trajectory size:${trajectory.size}")
 
         // find trips (start, end, trace)
-        val trips = tripDetector.find(trajectory)
+        var trips: Seq[Trip] = tripDetector.find(trajectory)
         logger.info(s"#trips: ${trips.size}")
+
+//        if (trips.isEmpty) {
+//          logger.info("trying fallback algorithm...")
+//          trips = fallbackTripDetector.find(trajectory)
+//        }
 
         // debug output if enabled
         if (config.writeDebugOut) {
@@ -125,17 +137,19 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
 
               write(toGeoJson(trip), dir.resolve(s"trip_$index.json").toString)
 
-              // with cluster points
-              write(
-                GeoJSONConverter.merge(
-                  GeoJSONConverter.merge(
-                    GeoJSONConverter.toGeoJSONPoints(trip.startCluster),
-                    GeoJSONConverter.toGeoJSONPoints(trip.endCluster)
-                  ),
-                  GeoJSONConverter.toGeoJSONLineString(Seq(trip.start) ++ trip.trace ++ Seq(trip.end))
-                ),
-                dir.resolve(s"trip_${index}_with_clusters.json").toString)
-
+              trip match {
+                case t: ClusterTrip =>
+                  // with cluster points
+                  write(
+                    GeoJSONConverter.merge(
+                      GeoJSONConverter.merge(
+                        GeoJSONConverter.toGeoJSONPoints(t.startCluster),
+                        GeoJSONConverter.toGeoJSONPoints(t.endCluster)
+                      ),
+                      GeoJSONConverter.toGeoJSONLineString(Seq(t.start) ++ t.trace ++ Seq(t.end))
+                    ),
+                    dir.resolve(s"trip_${index}_with_clusters.json").toString)
+              }
             }
         }
 
@@ -275,7 +289,5 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
         c.copy(testEnd = x)).text("test mode end date")
 
     help("help").text("prints this usage text")
-
   }
-
 }
