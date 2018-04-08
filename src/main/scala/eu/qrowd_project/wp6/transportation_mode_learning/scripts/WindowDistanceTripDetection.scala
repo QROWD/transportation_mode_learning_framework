@@ -26,13 +26,14 @@ class WindowDistanceTripDetection(windowSize: Int, stepSize: Int,
     // sort by time
     val points: Seq[TrackPoint] = trajectory.sortWith(_ < _)
 
-    val bins = mutable.Map[Int, (TrackPoint, TrackPoint)]()
+    //                      timestamp, (start point, stop point)
+    val windows = mutable.Map[Int, (TrackPoint, TrackPoint)]()
     for (i <- 0 until secsPerDay - windowSize by stepSize) {
-      bins.put(i, null)
+      windows.put(i, null)
     }
 
     var candidateKeys = mutable.ArraySeq[Int]()
-    candidateKeys ++= bins.keys
+    candidateKeys ++= windows.keys
 
     for (point <- points) {
       val secsOfDay = getSecondsOfDay(point.timestamp)
@@ -45,67 +46,72 @@ class WindowDistanceTripDetection(windowSize: Int, stepSize: Int,
       }
 
       for (k <- candidateKeys.filter(k => k <= secsOfDay && secsOfDay <= (k + windowSize))) {
-        val bin = bins(k)
-        if (bin == null) {
-          bins(k) = (point, point)
+        val window = windows(k)
+        if (window == null) {
+          windows(k) = (point, point)
         } else {
-          if (point < bin._1) {
+          if (point < window._1) {
             // timestamp of the point is earlier than the existing one
-            bins(k) = (point, bin._2)
-          } else if (point > bin._2) {
+            windows(k) = (point, window._2)
+          } else if (point > window._2) {
             // timestamp of the point is later than the existing one
-            bins(k) = (bin._1, point)
+            windows(k) = (window._1, point)
           }
         }
       }
     }
 
-    var pointsWithCategories: List[(TrackPoint, Boolean)] = bins.values
+    var windowStartPointsWithCategories: List[(TrackPoint, Boolean)] = windows.values
       .toList.distinct.filter(_ != null)
-      .map(pair => (pair._1, HaversineDistance.compute(pair._1, pair._2) >= distanceThresholdInKm))
+      .map(startEndPair => (
+        startEndPair._1,
+        HaversineDistance.compute(startEndPair._1, startEndPair._2) >= distanceThresholdInKm
+      ))
 
-    val availableCategoryPoints = pointsWithCategories.map(_._1)
+    val availableCategoryPoints = windowStartPointsWithCategories.map(_._1)
 
-    val tmp: Seq[(TrackPoint, Int)] = points.map(p => {
+    val pointsWithCategories: Seq[(TrackPoint, Int)] = points.map(p => {
       if (availableCategoryPoints.contains(p)) {
-        // if this point is one of the beginning points of a window...
+        // if this point is one of the start points of a window...
 
         val idx = availableCategoryPoints.indexOf(p)
         // ...get the category (i.e. distance in window > distance threshold)
         // from the respective window:
         //    1: distance in window > distance threshold --> a trip segment
         //    0: distance in window <= distance threshold --> not a trip segment
-        val isTrip: Int = if (pointsWithCategories(idx)._2) 1 else 0
+        val isTrip: Int = if (windowStartPointsWithCategories(idx)._2) 1 else 0
 
         (p, isTrip)
       } else {
-        // this point is not a beginning point of a window (which can happen
-        // since the step size might be greater 1).
+        // this point is not a start point of a window (which can happen
+        // since the step size might be greater 1 and points have a nanosecond
+        // accuracy).
         // Here the trip segment/not trip segment flag is set to -1 which means
         // 'don't know'.
         (p, -1)
       }
     })
 
-    var beenWithinTrip: Int = tmp.head._2
+    var beenWithinTrip: Int = pointsWithCategories.head._2
     var lastTrip = Seq.empty[TrackPoint]
     var trips = Seq.empty[Trip]
     var noiseSegmentsCounter = 0
 
-    for (pointWithCat <- tmp) {
+    for (pointWithCat <- pointsWithCategories) {
       val currPoint = pointWithCat._1
+
       // -1: don't know, i.e. same as previous point, 0: not part of trip,
       // 1: part of trip
-      val currPointPartOfTrip = pointWithCat._2
+      val currPointIsPartOfTrip = pointWithCat._2
 
-      (beenWithinTrip, currPointPartOfTrip) match {
+      (beenWithinTrip, currPointIsPartOfTrip) match {
         case (1, -1) =>
           // still within a trip sequence
           lastTrip = lastTrip ++ Seq(currPoint)
         case (1, 0) =>
           // found the end of a trip or a noise segment
           if (noiseSegmentsCounter <= noiseSegments) {
-            // non-trip segment considered as noise
+            // non-trip segment considered as noise --> still within trip
             noiseSegmentsCounter += 1
             lastTrip = lastTrip ++ Seq(currPoint)
           } else {
@@ -129,32 +135,7 @@ class WindowDistanceTripDetection(windowSize: Int, stepSize: Int,
       }
     }
 
-//    var isTrip = pointsWithCategories.head._2
-//    var lastTrip = Seq.empty[TrackPoint]
-//    var trips = Seq.empty[Trip]
-//
-//    for (pointWCat <- pointsWithCategories) {
-//      val currPoint = pointWCat._1
-//      val currPointPartOfTrip = pointWCat._2
-//      (isTrip, currPointPartOfTrip) match {
-//        case (true, false) =>
-//          // found the end of a trip
-//          trips = trips ++ Seq(NonClusterTrip(lastTrip.head, lastTrip.last, lastTrip))
-//          lastTrip = Seq.empty[TrackPoint]
-//          isTrip = false
-//        case (true, true) =>
-//          // still within a trip sequence
-//          lastTrip = lastTrip ++ Seq(currPoint)
-//        case (false, true) =>
-//          // found the beginning of a new trip
-//          lastTrip = Seq(currPoint)
-//          isTrip = true
-//        case (false, false) =>
-//          // within a non-trip sequence --> nothing to do
-//      }
-//    }
-
-    trips.filter(_.trace.size >= (minNrOfSegments + 1))
+    trips.filter(_.trace.size > minNrOfSegments)
   }
 
   private def getSecondsOfDay(timestamp: Timestamp): Double = {
@@ -167,12 +148,11 @@ class WindowDistanceTripDetection(windowSize: Int, stepSize: Int,
 
     (hours * 60 * 60) + (mins * 60) + secs + (nanoSecs / 1000000000.0)
   }
-
 }
 
 object WindowDistanceTripDetection {
   def main(args: Array[String]): Unit = {
-    val detector = new WindowDistanceTripDetection(300, 60, 0.17)
+    val detector = new WindowDistanceTripDetection(300, 60, 0.17, 8, 5)
     detector.getSecondsOfDay(Timestamp.valueOf(LocalDateTime.now()))
   }
 }
