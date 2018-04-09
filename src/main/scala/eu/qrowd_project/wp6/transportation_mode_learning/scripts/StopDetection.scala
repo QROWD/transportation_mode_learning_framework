@@ -2,7 +2,7 @@ package eu.qrowd_project.wp6.transportation_mode_learning.scripts
 
 import java.io.File
 
-import eu.qrowd_project.wp6.transportation_mode_learning.preprocessing.TDBSCAN
+import eu.qrowd_project.wp6.transportation_mode_learning.preprocessing.{TDBSCAN, TDBSCAN2}
 import eu.qrowd_project.wp6.transportation_mode_learning.util.TrackPoint
 
 /**
@@ -13,7 +13,7 @@ import eu.qrowd_project.wp6.transportation_mode_learning.util.TrackPoint
   * @param clusterer the cluster computing algorithm
   * @author Lorenz Buehmann
   */
-class StopDetection(val clusterer: TDBSCAN) {
+class StopDetection(val clusterer: TDBSCAN2) {
 
   /**
     * Determine stops given a GPS trajectory, i.e. a sequence of GPS points tagged with a timestamp.
@@ -25,7 +25,7 @@ class StopDetection(val clusterer: TDBSCAN) {
   def this(ceps: Double = 0.3,
            eps: Double = 0.1,
            minPts: Int = 80) {
-    this(new TDBSCAN(ceps, eps, minPts))
+    this(new TDBSCAN2(ceps, eps, minPts))
   }
 
   /**
@@ -35,7 +35,7 @@ class StopDetection(val clusterer: TDBSCAN) {
     *               `stop_detection.clustering.tdbscan`
     */
   def this(config: com.typesafe.config.Config) {
-    this(new TDBSCAN(config.getConfig("stop_detection.clustering.tdbscan")))
+    this(new TDBSCAN2(config.getConfig("stop_detection.clustering.tdbscan")))
   }
 
   /**

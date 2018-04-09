@@ -5,6 +5,7 @@ import java.sql.Timestamp
 import scala.collection.mutable
 
 import eu.qrowd_project.wp6.transportation_mode_learning.util.{HaversineDistance, TrackPoint}
+import org.apache.commons.math3.ml.clustering.Clusterable
 
 /**
   * An implementation of T-DBSCAN for clustering spatio-temporal data.
@@ -15,7 +16,7 @@ import eu.qrowd_project.wp6.transportation_mode_learning.util.{HaversineDistance
   * @param minPts the minimum number of neighboring points to identify a core point
   * @author Lorenz Buehmann
   */
-class TDBSCAN(
+class TDBSCAN2(
                val ceps: Double,
                val eps: Double,
                val minPts: Int,
@@ -41,10 +42,19 @@ class TDBSCAN(
     _distanceLookupCounter = 0
   }
 
+  object PointStatus extends Enumeration {
+    /** The point has is considered to be noise. */
+    type PointStatus = Value
+    val NOISE, PART_OF_CLUSTER = Value
+  }
+
+  import PointStatus._
+
   def cluster(points: Seq[TrackPoint]): Seq[Seq[TrackPoint]] = {
     reset()
 
     var clusters = Seq[Seq[TrackPoint]]()
+    val visited = mutable.Map[Clusterable, PointStatus]()
 
     var c = 0
     var maxId: Timestamp = Timestamp.valueOf(points.head.timestamp.toLocalDateTime.minusDays(1))
@@ -56,8 +66,6 @@ class TDBSCAN(
         .filter(_.timestamp.after(maxId))
         .head
 
-      visited += p
-
       // get neighbors
       val neighbors = getNeighbors(p, points)
 //      println(s"#neighbors:${neighbors.size}")
@@ -66,20 +74,24 @@ class TDBSCAN(
       maxId = p.timestamp
 
       // increase cluster ID
-      if(neighbors.size >= minPts) {
+      if(neighbors.size >= minPts) { // core point
         c += 1
+
+        logger.debug("new cluster")
+
+        // create new cluster
+        val cluster = mutable.ListBuffer[TrackPoint]()
+
+        // expand the cluster
+        val (expandedCluster, maxClusterId) = expandCluster(cluster, p, points, neighbors, maxId, visited)
+
+        maxId = maxClusterId
+
+        clusters :+= expandedCluster
+      } else{ // noise
+        visited += p -> PointStatus.NOISE
       }
-
-      // expand the cluster
-      val (cluster, maxClusterId) = expandCluster(p, points, neighbors, maxId, clusters)
-
-      maxId = maxClusterId
-
-      clusters :+= cluster
-
     }
-
-
 
     // merge clusters if timestamps overlap
     // if max point id of cluster_i >= min point id of cluster_i+1
@@ -199,10 +211,13 @@ class TDBSCAN(
     neighbors
   }
 
-  private def expandCluster(p: TrackPoint, points: Seq[TrackPoint], neighbors: Seq[TrackPoint],
-                            maxId: Timestamp, clusters: Seq[Seq[TrackPoint]]): (Seq[TrackPoint], Timestamp) = {
+  private def expandCluster(cluster: mutable.ListBuffer[TrackPoint], p: TrackPoint, points: Seq[TrackPoint], neighbors: Seq[TrackPoint],
+                            maxId: Timestamp, visited: mutable.Map[Clusterable, PointStatus])
+  : (Seq[TrackPoint], Timestamp) = {
     logger.debug(s"expanding cluster $maxId ...")
-    var cluster: Seq[TrackPoint] = Seq[TrackPoint](p)
+
+    cluster += p
+    visited += p -> PointStatus.PART_OF_CLUSTER
 
     var currentMaxId = maxId
 
@@ -213,23 +228,21 @@ class TDBSCAN(
       val current = seeds(index)
 
       // update max ID
-      if (current.timestamp.after(currentMaxId)) {
-        currentMaxId = current.timestamp
+      if (current.timestamp.after(currentMaxId)) currentMaxId = current.timestamp
+
+      // only check non-visited points
+      val pStatus = visited.get(current)
+      if(pStatus.isEmpty) {
+        // find the neighbors of neighbors of core point p
+        val currentNeighbors = getNeighbors(current, points)
+
+        if(currentNeighbors.size >= minPts) seeds = merge(seeds, currentNeighbors)
       }
 
-      if(!visited.contains(current)) {
-        // find the neighbors of neighbors of core point p
-        val neighborsNeighbors = getNeighbors(current, points)
-
-        if(neighborsNeighbors.size >= minPts) {
-          seeds = merge(seeds, neighborsNeighbors)
-        }
-
-        // add p to cluster if it isn't already member of a cluster
-        if(!clusters.exists(_.contains(current))) {
-          cluster :+= current
-          visited += current
-        }
+      // add p to cluster if it isn't already member of a cluster
+      if(pStatus.isEmpty || pStatus.get != PointStatus.PART_OF_CLUSTER) {
+        cluster += current
+        visited += current -> PointStatus.PART_OF_CLUSTER
       }
 
       index += 1
