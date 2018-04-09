@@ -129,8 +129,8 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
               write(
                 GeoJSONConverter.merge(
                   GeoJSONConverter.merge(
-                    GeoJSONConverter.toGeoJSONPoints(trip.startCluster),
-                    GeoJSONConverter.toGeoJSONPoints(trip.endCluster)
+                    GeoJSONConverter.toGeoJSONPoints(trip.startCluster, Map("marker-symbol" -> "s", "marker-color" -> "#00cd00")),
+                    GeoJSONConverter.toGeoJSONPoints(trip.endCluster, Map("marker-symbol" -> "e", "marker-color" -> "#ee0000"))
                   ),
                   GeoJSONConverter.toGeoJSONLineString(Seq(trip.start) ++ trip.trace ++ Seq(trip.end))
                 ),
