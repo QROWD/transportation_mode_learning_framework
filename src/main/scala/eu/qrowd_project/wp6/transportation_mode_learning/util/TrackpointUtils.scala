@@ -93,10 +93,11 @@ object TrackpointUtils {
     * VCR is calculated by dividing the change in velocity by the velocity of the first point.
     *
     * @param v1 velocity of first point
-    * @param v2 velocity of first point
+    * @param v2 velocity of second point
     * @return velocity change rate
     */
   def velocityChangeRate(v1: Double, v2: Double): Double = {
-    (v2 - v1) / v2
+    if(v1 == 0) 0
+    else (v2 - v1) / v1
   }
 }

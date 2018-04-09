@@ -5,7 +5,7 @@ import java.io.File
 import scala.collection.JavaConversions._
 
 import com.datastax.driver.core.exceptions.{InvalidQueryException, UnauthorizedException}
-import com.datastax.driver.core.{Cluster, Session}
+import com.datastax.driver.core.{Cluster, Session, SocketOptions}
 import com.typesafe.config.ConfigFactory
 
 /**
@@ -86,6 +86,9 @@ class CassandraDBConnector(val userIds: Seq[String] = Seq()) {
           logger.warn(s"User $usersalt is an old one, we don't care about him and he does not belong to QROWD :(")
       }
     }
+
+    // deduplicate //TODO avoid
+    data = data.distinct
 
     data
   }

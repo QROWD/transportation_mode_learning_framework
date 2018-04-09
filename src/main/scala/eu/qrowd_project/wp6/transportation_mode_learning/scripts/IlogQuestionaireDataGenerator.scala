@@ -21,9 +21,18 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
 
   val logger = com.typesafe.scalalogging.Logger("ILog Questionaire Data Generator")
 
-  private val tripDetector = new TripDetection()
-
   private val appConfig = ConfigFactory.load()
+
+  private val tripDetector = new TripDetection()
+  private val fallbackTripDetector = new WindowDistanceTripDetection(
+    windowSize = appConfig.getInt("stop_detection.window_distance.window_size"),
+    stepSize = appConfig.getInt("stop_detection.window_distance.step_size"),
+    distanceThresholdInKm = appConfig.getDouble("stop_detection.window_distance.distance"),
+    minNrOfSegments = appConfig.getInt("stop_detection.window_distance.min_nr_of_segments"),
+    noiseSegments = appConfig.getInt("stop_detection.window_distance.noise_segments")
+  )
+
+
   private lazy val poiRetrieval = POIRetrieval(appConfig.getString("poi_retrieval.lgd_lookup.endpoint_url"))
   private lazy val reverseGeoCoder = ReverseGeoCoderOSM(
     appConfig.getString("address_retrieval.reverse_geo_coding.base_url"),
@@ -78,6 +87,62 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
   private var users: Seq[String] = Seq()
   private lazy val cassandra = CassandraDBConnector(users)
 
+  private def detectOutliers(trajectory: Seq[TrackPoint]): Seq[TrackPoint] = {
+
+    var outliers = trajectory
+      .sliding(3)
+      .flatMap {
+        case Seq(a, b, c) =>
+          val v1 = TrackpointUtils.avgSpeed(a, b)
+          val v2 = TrackpointUtils.avgSpeed(b, c)
+
+          val diffV = Math.abs(v2 - v1)
+          val d13 = HaversineDistance.compute(a, c)
+
+//          println(Seq(a, b, c))
+//          println(s"v1=$v1, v2=$v2, d=$d13")
+          val tv = 30
+          val td = 0.1
+
+          if(d13 <= td && v1 >= tv && v2 >= tv) {
+            Some(b)
+          } else {
+            None
+          }
+      }
+        .toSeq
+
+
+//    var outliers =
+//      trajectory
+//        .sliding(5)
+//        .flatMap {
+//          case Seq(a, b, c, d, e) =>
+//            val v1 = TrackpointUtils.avgSpeed(a, b)
+//            val v2 = TrackpointUtils.avgSpeed(b, c)
+//            val v3 = TrackpointUtils.avgSpeed(c, d)
+//            val v4 = TrackpointUtils.avgSpeed(d, e)
+//
+//            val t1 = 10
+//            val t2 = 30
+//            println(s"v1=$v1, v2=$v2, v3=$v3, v4=$v4")
+//            if(v1 < t1 &&
+//              v4 < t1 &&
+//              v2 - v1 > t2 &&
+//              v3 - v4 > t2) {
+//              //                println(s"v1=$v1, v2=$v2, v3=$v3, v4=$v4")
+//              println("outlier!")
+//              println(Seq(a, b, c, d, e))
+//              Some(c)
+//            } else {
+//              None
+//            }
+//        }
+//        .toSeq
+
+    outliers
+  }
+
   private def run(config: Config): Unit = {
     //    val inputPath = args(0)
     //    val data = loadDataFromDisk(inputPath, date)
@@ -96,12 +161,22 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
         logger.info(s"processing user $userId ...")
 
         // extract GPS data
-        val trajectory = entries.map(e => TrackPoint(e.latitude, e.longitude, e.timestamp))
+        var trajectory = entries.map(e => TrackPoint(e.latitude, e.longitude, e.timestamp)).distinct
         logger.info(s"trajectory size:${trajectory.size}")
 
+        // find outliers
+        val outliers = detectOutliers(trajectory)
+        logger.info(s"outliers:${outliers.mkString(",")}")
+        trajectory = trajectory.filter(!outliers.contains(_))
+
         // find trips (start, end, trace)
-        val trips = tripDetector.find(trajectory)
+        var trips: Seq[Trip] = tripDetector.find(trajectory)
         logger.info(s"#trips: ${trips.size}")
+
+        if (trips.isEmpty) {
+          logger.info("trying fallback algorithm...")
+          trips = fallbackTripDetector.find(trajectory)
+        }
 
         // debug output if enabled
         if (config.writeDebugOut) {
@@ -125,17 +200,21 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
 
               write(toGeoJson(trip), dir.resolve(s"trip_$index.json").toString)
 
-              // with cluster points
-              write(
-                GeoJSONConverter.merge(
-                  GeoJSONConverter.merge(
-                    GeoJSONConverter.toGeoJSONPoints(trip.startCluster, Map("marker-symbol" -> "s", "marker-color" -> "#00cd00")),
-                    GeoJSONConverter.toGeoJSONPoints(trip.endCluster, Map("marker-symbol" -> "e", "marker-color" -> "#ee0000"))
-                  ),
-                  GeoJSONConverter.toGeoJSONLineString(Seq(trip.start) ++ trip.trace ++ Seq(trip.end))
-                ),
-                dir.resolve(s"trip_${index}_with_clusters.json").toString)
 
+              trip match {
+                case t: ClusterTrip =>
+                  // with cluster points
+                  write(
+                    GeoJSONConverter.merge(
+                      GeoJSONConverter.merge(
+                        GeoJSONConverter.toGeoJSONPoints(t.startCluster, Map("marker-symbol" -> "s", "marker-color" -> "#00cd00")),
+                        GeoJSONConverter.toGeoJSONPoints(t.endCluster, Map("marker-symbol" -> "e", "marker-color" -> "#ee0000"))
+                      ),
+                      GeoJSONConverter.toGeoJSONLineString(Seq(t.start) ++ t.trace ++ Seq(t.end))
+                    ),
+                    dir.resolve(s"trip_${index}_with_clusters.json").toString)
+                case _ =>
+              }
             }
         }
 
@@ -275,7 +354,5 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
         c.copy(testEnd = x)).text("test mode end date")
 
     help("help").text("prints this usage text")
-
   }
-
 }
