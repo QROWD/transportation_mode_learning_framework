@@ -88,7 +88,7 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
   private lazy val cassandra = CassandraDBConnector(users)
 
   private def detectOutliers(trajectory: Seq[TrackPoint]): Seq[TrackPoint] = {
-
+    if (trajectory.size >= 3) {
     var outliers = trajectory
       .sliding(3)
       .flatMap {
@@ -141,6 +141,9 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
 //        .toSeq
 
     outliers
+    } else {
+      Seq.empty[TrackPoint]
+    }
   }
 
   private def run(config: Config): Unit = {
@@ -248,10 +251,17 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
   private def addressLookup(p: TrackPoint): Address = {
     // address retrieval (reverse geo-coding
     val json = reverseGeoCoder.find(p.long, p.lat)
+    var label: String = ""
+    try {
+      label = json.get.getString("name")
+    } catch {
+      case e: ClassCastException =>
+        label = json.get.getString("display_name")
+    }
 
     if(json.isSuccess) {
       Address(
-        label=json.get.getString("display_name"),
+        label=label,
         category=json.get.getString("category"),
         `type`=json.get.getString("type"))
     } else {
