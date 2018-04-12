@@ -83,32 +83,73 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
   private val formatter = DateTimeFormatter.ofPattern("yyyyMMdd")
 
   // connect to Trento Cassandra DB
-  private val trentoTestUsers = Seq("ecfb0929250fb6dda66a4065441230ab27f094e5", "d429974540bfd38c3367fe9f0c8682775ff4fa18")
+//  private val trentoTestUsers = Seq("ecfb0929250fb6dda66a4065441230ab27f094e5", "d429974540bfd38c3367fe9f0c8682775ff4fa18")
+//  private val trentoTestUsers = Seq("c9a6479c79a77d03c8d21b0ec02ccbcf06711e0a")
+  private val trentoTestUsers = Seq("dbdec2ba1c6ac8a72bef8904af59c9ba87c2ea02")
+
+
   private var users: Seq[String] = Seq()
   private lazy val cassandra = CassandraDBConnector(users)
 
+  private def compress[A](l: List[A]):List[A] = l.foldLeft(List[A]()) {
+    case (List(), e) => List(e)
+    case (ls, e) if (ls.last == e) => ls
+    case (ls, e) => ls:::List(e)
+  }
+
+  private def compressTimestamps[A](l: List[A])(f: (A, A) => Boolean): List[A] = l.foldLeft(List[A]()) {
+    case (List(), e) => List(e)
+    case (ls, e) if f(ls.last, e) => ls
+    case (ls, e) => ls:::List(e)
+  }
+
   private def detectOutliers(trajectory: Seq[TrackPoint]): Seq[TrackPoint] = {
     if (trajectory.size >= 3) {
-    var outliers = trajectory
+
+    var outliers =
+//      compressTimestamps(trajectory.toList)((a, b) => a.lat == b.lat && a.long == b.long)
+    trajectory
       .sliding(3)
       .flatMap {
         case Seq(a, b, c) =>
           val v1 = TrackpointUtils.avgSpeed(a, b)
           val v2 = TrackpointUtils.avgSpeed(b, c)
 
-          val diffV = Math.abs(v2 - v1)
+          val d12 = HaversineDistance.compute(a, b)
+          val d23 = HaversineDistance.compute(b, c)
           val d13 = HaversineDistance.compute(a, c)
 
 //          println(Seq(a, b, c))
-//          println(s"v1=$v1, v2=$v2, d=$d13")
+//          println(s"v1=$v1, v2=$v2")
+//          println(s"d12=$d12, d23=$d23, d13=$d13")
+//          println(s"t13=${TrackpointUtils.timeDiff(a, c)}")
+
+          val b1 = TrackpointUtils.bearing(a, b)
+          val b2 = TrackpointUtils.bearing(b, c)
+
+          val t13 = TrackpointUtils.timeDiff(a, c)
+
           val tv = 30
           val td = 0.1
+          val eps_b = 5.0
+          val eps_t = 90L // time diff between a and c
 
-          if(d13 <= td && v1 >= tv && v2 >= tv) {
+
+          val test = Math.abs(180 - Math.abs(b1 - b2))
+//          println(Seq(a, b, c))
+//          println(test)
+//          println(s"$test    $t13     $d12")
+//          println(Math.abs(180 - Math.abs(b1 - b2)) < eps_b && t13 <= eps_t && d12 >= 0.1)
+
+
+          if((Math.abs(180 - Math.abs(b1 - b2)) <= eps_b && t13 <= eps_t && d12 >= 0.1)
+            || d13 <= td && v1 >= tv && v2 >= tv) {
             Some(b)
           } else {
             None
           }
+
+        case _ => None
       }
         .toSeq
 
@@ -171,6 +212,7 @@ object IlogQuestionaireDataGenerator extends JSONExporter with ParquetLocationEv
         val outliers = detectOutliers(trajectory)
         logger.info(s"outliers:${outliers.mkString(",")}")
         trajectory = trajectory.filter(!outliers.contains(_))
+        logger.info(s"trajectory size (after outlier removal):${trajectory.size}")
 
         // find trips (start, end, trace)
         var trips: Seq[Trip] = tripDetector.find(trajectory)
