@@ -159,6 +159,13 @@
                 <version>2.3.0</version>
             </dependency>
 
+            <!-- JPX API -->
+            <dependency>
+                <groupId>io.jenetics</groupId>
+                <artifactId>jpx</artifactId>
+                <version>1.3.0</version>
+            </dependency>
+
             <!--<dependency>-->
                 <!--<groupId>systems.uom</groupId>-->
                 <!--<artifactId>systems-ucum-java8</artifactId>-->
