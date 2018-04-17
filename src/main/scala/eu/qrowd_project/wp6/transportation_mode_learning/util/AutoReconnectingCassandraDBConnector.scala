@@ -65,16 +65,19 @@ class AutoReconnectingCassandraDBConnector extends CassandraDBConnector {
 
   override def readData(day: String): Seq[(String, Seq[LocationEventRecord])] = {
     var dataReadSuccessfully = false
+    var res = Seq.empty[(String, Seq[LocationEventRecord])]
 
     while (!dataReadSuccessfully) {
       try {
-        runQuery(cluster.getMetadata.getKeyspaces, session, day)
+        res = runQuery(cluster.getMetadata.getKeyspaces, session, day)
         dataReadSuccessfully = true
       } catch {
-        case e: Throwable =>
+        case t: Throwable =>
           logger.error("Failed to read data from cassandra. Retrying....", t)
       }
     }
+
+    res
   }
 
   override def close(): Unit = {
