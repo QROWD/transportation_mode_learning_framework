@@ -1,12 +1,13 @@
 package eu.qrowd_project.wp6.transportation_mode_learning.util
 
 import java.io.File
-
-import scala.collection.JavaConversions._
+import java.util
 
 import com.datastax.driver.core.exceptions.{InvalidQueryException, UnauthorizedException}
-import com.datastax.driver.core.{Cluster, Session, SocketOptions}
+import com.datastax.driver.core.{Cluster, KeyspaceMetadata, Session}
 import com.typesafe.config.ConfigFactory
+
+import scala.collection.JavaConversions._
 
 /**
   * Connect to a Cassandra DB of Uni Trento
@@ -22,7 +23,7 @@ class CassandraDBConnector(val userIds: Seq[String] = Seq()) {
 
   lazy val config = ConfigFactory.parseFile(new File(getClass.getClassLoader.getResource("cassandra.conf").toURI))
 
-  lazy val cluster: Cluster = {
+  private lazy val cluster: Cluster = {
     logger.info("setting up Cassandra cluster...")
 
     val builder = Cluster.builder
@@ -42,7 +43,7 @@ class CassandraDBConnector(val userIds: Seq[String] = Seq()) {
     cluster
   }
 
-  lazy val session: Session = {
+  private lazy val session: Session = {
     logger.info("setting up Cassandra session...")
     val session = cluster.connect
     _sessionInitialized = true
@@ -60,10 +61,14 @@ class CassandraDBConnector(val userIds: Seq[String] = Seq()) {
     * @return users with their location event records
     */
   def readData(day: String): Seq[(String, Seq[LocationEventRecord])] = {
-    var data: Seq[(String, Seq[LocationEventRecord])] = Seq()
-
     // get all the keyspaces
     val keyspaces = cluster.getMetadata.getKeyspaces
+
+    runQuery(keyspaces, session, day)
+  }
+
+  def runQuery(keyspaces: util.List[KeyspaceMetadata], session: Session, day: String): Seq[(String, Seq[LocationEventRecord])] = {
+    var data: Seq[(String, Seq[LocationEventRecord])] = Seq()
 
     // loop over each keyspace
     for (keyspace <- keyspaces if userIds.isEmpty || userIds.contains(keyspace.getName)) { //Get the keyspace name that is what we need to perform queries. Since 1 keyspace = 1 user, the keyspace name is the user uniqueidentifier (salt)
