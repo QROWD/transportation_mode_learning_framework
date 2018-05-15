@@ -43,7 +43,6 @@ class GraphhopperMapMatcherHttp(val url: String) extends GraphhopperMapMatchingS
   }
 
   def shutdown(): Unit = {
-    httpClient.getConnectionManager().shutdown()
     httpClient.close()
   }
 }

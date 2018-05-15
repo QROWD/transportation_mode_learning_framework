@@ -4,11 +4,8 @@ import java.io.{OutputStreamWriter, _}
 import java.net.Socket
 import java.nio.charset.StandardCharsets
 
-import scala.util.Try
-
 import eu.qrowd_project.wp6.transportation_mode_learning.util.TryWith
 import javax.json.{Json, JsonObject}
-import org.apache.http.impl.client.HttpClientBuilder
 
 /**
   * Communicate with the Barefoot Map server via a socket stream.
@@ -18,8 +15,6 @@ import org.apache.http.impl.client.HttpClientBuilder
   */
 class BarefootMapMatcherSocket(val host: String, val port: Int) extends BarefootMapMatchingService {
   val logger = com.typesafe.scalalogging.Logger("Barefoot Map Matcher")
-
-  private val httpClient = HttpClientBuilder.create().build()
 
   override def query(json: String): Option[JsonObject] = request(json)
 
@@ -54,15 +49,6 @@ class BarefootMapMatcherSocket(val host: String, val port: Int) extends Barefoot
       }
       res
     }).get
-  }
-
-  private def aquire(host: String, port: Int): Try[Socket] = {
-    Try(new Socket(host, port))
-  }
-
-  def shutdown(): Unit = {
-    httpClient.getConnectionManager().shutdown()
-    httpClient.close()
   }
 }
 
