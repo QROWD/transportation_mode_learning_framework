@@ -1,10 +1,16 @@
 package eu.qrowd_project.wp6.transportation_mode_learning.util
 
 import java.io.File
+import java.sql.Timestamp
+import java.text.SimpleDateFormat
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import java.util
+import java.util.Date
 
+import breeze.io.CSVWriter
 import com.datastax.driver.core.exceptions.{InvalidQueryException, UnauthorizedException}
-import com.datastax.driver.core.{Cluster, KeyspaceMetadata, Session}
+import com.datastax.driver.core.{Cluster, KeyspaceMetadata, Session, SocketOptions}
 import com.typesafe.config.ConfigFactory
 
 import scala.collection.JavaConversions._
@@ -34,9 +40,9 @@ class CassandraDBConnector(val userIds: Seq[String] = Seq()) {
         config.getString("connection.credentials.user"),
         config.getString("connection.credentials.password"))
       .withMaxSchemaAgreementWaitSeconds(60)
-//      .withSocketOptions(new SocketOptions()
-//        .setConnectTimeoutMillis(120000)
-//        .setReadTimeoutMillis(120000))
+      .withSocketOptions(new SocketOptions()
+        .setConnectTimeoutMillis(120000)
+        .setReadTimeoutMillis(120000))
       .build
     val cluster = builder.build
     _clusterInitialized = true
@@ -96,6 +102,92 @@ class CassandraDBConnector(val userIds: Seq[String] = Seq()) {
     data = data.distinct
 
     data
+  }
+
+  /**
+    *
+    * @param user The hash representing a user, e.g. c43070046a941029397691609f583f327b2d1fa9
+    * @param dateString A string of the pattern %Y%m%d, e.g. 20180528
+    * @param csvOutputFile A file object for the output CSV file
+    */
+  def writeAccelerometerDataToCSV(user: String, dateString: String, csvOutputFile: File): Unit = {
+    /*
+     * > DESC accelerometerevent;
+     *
+     * CREATE TABLE abcdefg.accelerometerevent (
+     *     day text,
+     *     timestamp text,
+     *     x float,
+     *     y float,
+     *     z float,
+     *     PRIMARY KEY (day, timestamp)
+     * ) WITH CLUSTERING ORDER BY (timestamp ASC)
+     *     AND ...
+     */
+    val resultColumns = Seq("timestamp", "x", "y", "z")
+    val table = "accelerometerevent"
+
+    val queryString =
+      "SELECT " + resultColumns.mkString(",") + " " +
+      "FROM " + user + "." + table + " " +
+      "WHERE day='" + dateString + "'"
+    val resultSet = session.execute(queryString)
+
+    val preparedData = resultSet.map(row => Seq(
+      row.getString("timestamp"),
+      row.getFloat("x").toString,
+      row.getFloat("y").toString,
+      row.getFloat("z").toString
+    ).toIndexedSeq)
+
+    var data: Seq[IndexedSeq[String]] = Seq(Seq("timestamp", "x", "y", "z").toIndexedSeq)
+
+    data ++= preparedData
+    CSVWriter.writeFile(csvOutputFile, data.toIndexedSeq)
+  }
+
+  /**
+    *
+    * @param user The hash representing a user, e.g. c43070046a941029397691609f583f327b2d1fa9
+    * @param dateString A string of the pattern %Y%m%d, e.g. 20180528
+    * @param csvOutputFile A file object for the output CSV file
+    */
+  def writeGPSDataToCSV(user: String, dateString: String, csvOutputFile: File): Unit = {
+    /*
+     * > DESC locationeventpertime;
+     *
+     * CREATE TABLE abcdefg.locationeventpertime (
+     *     day text,
+     *     timestamp text,
+     *     accuracy float,
+     *     bearing double,
+     *     lucene text,
+     *     point frozen<point>,
+     *     provider text,
+     *     speed float,
+     *     PRIMARY KEY (day, timestamp)
+     * ) WITH CLUSTERING ORDER BY (timestamp ASC)
+     *     AND ...
+     */
+    val table = "locationeventpertime"
+
+    val queryString =
+      "SELECT * " +
+        "FROM " + user + "." + table + " " +
+        "WHERE day='" + dateString + "'"
+    val resultSet = session.execute(queryString)
+
+    val preparedData = resultSet.map(row => (row.getString("timestamp"), LocationEventRecord.from(row)))
+      .map(r => Seq(r._1,
+        r._2.latitude.toString,
+        r._2.longitude.toString,
+        r._2.altitude.toString).toIndexedSeq)
+
+    var data: Seq[IndexedSeq[String]] =
+      Seq(Seq("timestamp", "latitude", "longitude", "altitude").toIndexedSeq)
+
+    data ++= preparedData
+    CSVWriter.writeFile(csvOutputFile, data.toIndexedSeq)
   }
 
   /**
