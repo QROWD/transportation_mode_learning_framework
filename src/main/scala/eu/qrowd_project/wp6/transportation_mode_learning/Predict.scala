@@ -4,10 +4,11 @@ import java.io.File
 import java.nio.file.{Files, Paths}
 import java.sql.Timestamp
 import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 import scala.collection.JavaConverters._
-
 import eu.qrowd_project.wp6.transportation_mode_learning.scripts.{ClusterTrip, Trip, TripDetection}
+import eu.qrowd_project.wp6.transportation_mode_learning.util.LocationEventRecord.dateTimeFormatter
 import eu.qrowd_project.wp6.transportation_mode_learning.util.TrackPoint
 
 
@@ -49,6 +50,8 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
     // 2. for each trip, we try to predict the different modes of transportation
     val tripDataWithModeProbs = splittedData.map(data => (data._1, predictModes(data._2)))
 
+    tripDataWithModeProbs
+
   }
 
   private def splitTrips(gpsTrajectory: Seq[TrackPoint],
@@ -78,7 +81,7 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
 
     // write data as CSV to disk
     val inputFile = File.createTempFile("qrowddata", ".tmp").toPath
-    val content = "x,y,z\n" + accelerometerData.map(entry => entry.productIterator.mkString(",")).mkString("\n")
+    val content = "x,y,z\n" + accelerometerData.map(entry => (entry._1, entry._2, entry._3).productIterator.mkString(",")).mkString("\n")
     Files.write(inputFile, content.getBytes("UTF-8"))
 
     // call external R script
@@ -107,17 +110,30 @@ case class ModeProbabilities(schema: Seq[String], probabilities: Seq[(Double, Do
 object Predict {
 
   def main(args: Array[String]): Unit = {
-    val data = Files.readAllLines(Paths.get("/home/user/work/r/TR/datasets/car.csv")).asScala
+    val gpsPath = args(0)
+    val accPath = args(1)
+    val rScriptPath = args(2)
+
+    val gpsData = Files.readAllLines(Paths.get(gpsPath)).asScala
       .drop(1)
-      .map(lines => lines.split(","))
-      .map(cols => (cols(1).toDouble, cols(2).toDouble, cols(3).toDouble, Timestamp.valueOf(LocalDateTime.now())))
+      .map(line => line.replace("\"", "").split(","))
+      .map{case Array(t, lat, long, alt) => TrackPoint(lat.toDouble, long.toDouble, asTimestamp(t))}
 
-    val res = new Predict("/home/user/work/r/TR",
-      "/home/user/work/r/TR/run.r",
-      "/home/user/work/r/TR/model.rds")
-      .predictModes(data)
+    val data = Files.readAllLines(Paths.get(accPath)).asScala
+      .drop(1)
+      .map(line => line.replace("\"", "").split(","))
+      .map{case Array(t, x, y, z) => (x.toDouble, y.toDouble, z.toDouble, asTimestamp(t))}
 
-    println(res.probabilities.mkString("\n"))
+    val res = new Predict(rScriptPath,
+      s"$rScriptPath/run.r",
+      s"$rScriptPath/model.rds")
+      .predict(gpsData, data)
+
+    println(res)
   }
+
+  private val dateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
+  private def asTimestamp(timestamp :String) =
+    Timestamp.valueOf(LocalDateTime.parse(timestamp.substring(0, 14), dateTimeFormatter))
 
 }
