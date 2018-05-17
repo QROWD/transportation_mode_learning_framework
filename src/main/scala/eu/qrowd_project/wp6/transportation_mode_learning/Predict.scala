@@ -4,14 +4,14 @@ import java.io.File
 import java.nio.charset.Charset
 import java.nio.file.{Files, Paths}
 import java.sql.Timestamp
-import java.time.LocalDateTime
+import java.time.{Duration, LocalDateTime}
 import java.time.format.DateTimeFormatter
 
 import scala.collection.JavaConverters._
 
 import eu.qrowd_project.wp6.transportation_mode_learning.scripts.{ClusterTrip, Trip, TripDetection, WindowDistanceTripDetection}
 import eu.qrowd_project.wp6.transportation_mode_learning.util.LocationEventRecord.dateTimeFormatter
-import eu.qrowd_project.wp6.transportation_mode_learning.util.{GeoJSONConverter, GeoJSONExporter, TrackPoint}
+import eu.qrowd_project.wp6.transportation_mode_learning.util._
 
 
 /**
@@ -74,6 +74,40 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
 
     // pick some colors for each mode
     val colors = GeoJSONConverter.colors(6)
+
+    val gpsPairs = trip.trace zip trip.trace.tail
+
+    gpsPairs.map {
+      case (tp1, tp2) =>
+        val begin = tp1.timestamp
+        val end = tp2.timestamp
+
+        // bearing
+        val bearing = TrackpointUtils.bearing(tp1, tp2)
+
+        // total time between t2 and t1 in ms
+        val timeTotalMs = Duration.between(tp2.timestamp.toLocalDateTime, tp1.timestamp.toLocalDateTime).toMillis
+
+        // total distance
+        val distanceTotalKm = HaversineDistance.compute(tp1, tp2)
+
+        // get all modes in time range between both GPS points
+        val modesBetween = compressedModes.filter(e => e._3.after(begin) && e._3.before(end))
+
+        // for each mode we compute the distance taken based on time ratio
+        (modesBetween zip modesBetween.tail).map {
+          case ((mode1, maxValue1, t1),(mode2, maxValue2, t2)) =>
+            val timeMs = Duration.between(begin.toLocalDateTime, t2.toLocalDateTime).toMillis
+
+            val ratio = timeMs.toDouble / timeTotalMs
+
+            val distanceKm = ratio * distanceTotalKm
+
+            val newPoint = TrackpointUtils.pointFrom(tp1, bearing, distanceKm)
+
+            (TrackPoint(newPoint.lat, newPoint.long, t2), mode1)
+        }
+    }
 
     // build lines JSON object between each mode change
     val lineStringsJson = (compressedModes zip compressedModes.tail).map {
