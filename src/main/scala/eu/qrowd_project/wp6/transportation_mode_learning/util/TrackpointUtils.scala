@@ -100,4 +100,26 @@ object TrackpointUtils {
     if(v1 == 0) 0
     else (v2 - v1) / v1
   }
+
+  /**
+    * Computes a new point from the given point.
+    *
+    * @param tp the start point
+    * @param bearing the bearing in rad
+    * @param distanceKm the distance in km
+    * @param R the earth radius
+    * @return the new point
+    */
+  def pointFrom(tp: TrackPoint, bearing: Double, distanceKm: Double, R: Double = 6378.1): Point = {
+    val lat1 = Math.toRadians(tp.lat)
+    val lon1 = Math.toRadians(tp.long)
+
+    val lat2 = Math.asin(Math.sin(lat1) * Math.cos(distanceKm / R) +
+      Math.cos(lat1) * Math.sin(distanceKm / R) * Math.cos(bearing))
+
+    val lon2 = lon1 + Math.atan2(Math.sin(bearing) * Math.sin(distanceKm / R) * Math.cos(lat1),
+      Math.cos(distanceKm / R) - Math.sin(lat1) * Math.sin(lat2))
+
+    Point(Math.toDegrees(lat2), Math.toDegrees(lon2))
+  }
 }
