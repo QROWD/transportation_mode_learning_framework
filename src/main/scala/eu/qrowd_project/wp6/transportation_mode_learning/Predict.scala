@@ -77,7 +77,7 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
 
     val gpsPairs = trip.trace zip trip.trace.tail
 
-    gpsPairs.map {
+    val lineStringsJson = gpsPairs.map {
       case (tp1, tp2) =>
         val begin = tp1.timestamp
         val end = tp2.timestamp
@@ -95,7 +95,8 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
         val modesBetween = compressedModes.filter(e => e._3.after(begin) && e._3.before(end))
 
         // for each mode we compute the distance taken based on time ratio
-        (modesBetween zip modesBetween.tail).map {
+        // it contains a point and the mode used to this point
+        val intermediatePointsWithMode = (modesBetween zip modesBetween.tail).map {
           case ((mode1, maxValue1, t1),(mode2, maxValue2, t2)) =>
             val timeMs = Duration.between(begin.toLocalDateTime, t2.toLocalDateTime).toMillis
 
@@ -107,14 +108,27 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
 
             (TrackPoint(newPoint.lat, newPoint.long, t2), mode1)
         }
-    }
 
-    // build lines JSON object between each mode change
-    val lineStringsJson = (compressedModes zip compressedModes.tail).map {
-      case ((mode1, maxValue1, t1),(mode2, maxValue2, t2)) =>
-        val points = trip.trace.filter(p => p.timestamp.after(t1) && p.timestamp.before(t2))
-        GeoJSONConverter.toGeoJSONLineString(points, Map("color" -> colors(modeProbabilities.schema.indexOf(mode1)).toString))
-    }
+        // generate pairs of points with the mode used in between
+        var first = Seq((tp1, intermediatePointsWithMode.head._1, intermediatePointsWithMode.head._2))
+        val mid =  (intermediatePointsWithMode zip intermediatePointsWithMode.tail).map{
+          case ((p1, mode1), (p2, mode2)) =>
+            (p1, p2, mode2)
+        }
+
+
+        // generate line strings between all points
+        (first ++ mid).map {
+          case (p1, p2, mode) => GeoJSONConverter.toGeoJSONLineString(Seq(p1, p2), Map("color" -> colors(modeProbabilities.schema.indexOf(mode)).toString))
+        }
+    }.flatten
+
+//    // build lines JSON object between each mode change
+//    val lineStringsJson = (compressedModes zip compressedModes.tail).map {
+//      case ((mode1, maxValue1, t1),(mode2, maxValue2, t2)) =>
+//        val points = trip.trace.filter(p => p.timestamp.after(t1) && p.timestamp.before(t2))
+//        GeoJSONConverter.toGeoJSONLineString(points, Map("color" -> colors(modeProbabilities.schema.indexOf(mode1)).toString))
+//    }
 
     // build the points JSON object
     val pointsJson = GeoJSONConverter.toGeoJSONPoints(trip.trace)
