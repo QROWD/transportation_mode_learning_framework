@@ -41,6 +41,10 @@ object GeoJSONConverter {
       .build()
   }
 
+  def merge(jsonObjects : Seq[JsonObject]): JsonObject = {
+    jsonObjects.drop(1).foldLeft(jsonObjects.head)(merge)
+  }
+
   def toGeoJSONPoints(entries: Seq[TrackPoint], properties: Map[String, String] = Map()): JsonObject = {
     val features = Json.createArrayBuilder()
 
@@ -71,7 +75,7 @@ object GeoJSONConverter {
   }
 
 
-  def toGeoJSONLineString(entries: Seq[TrackPoint]): JsonObject = {
+  def toGeoJSONLineString(entries: Seq[TrackPoint], properties: Map[String, String] = Map()): JsonObject = {
     val concisePoints = entries.head :: entries.sliding(2).collect { case Seq(a,b) if a != b => b }.toList
 
     val coordinates = Json.createArrayBuilder()
@@ -79,15 +83,19 @@ object GeoJSONConverter {
       case(p, i) => coordinates.add(i, Json.createArrayBuilder(Seq(p.long, p.lat).asJava))
     }
 
+    val props = Json.createObjectBuilder()
+      .add("timestamp-start", entries.head.timestamp.toString)
+      .add("timestamp-end", entries.last.timestamp.toString)
+    properties.foreach(e => props.add(e._1, e._2))
+
     val feature = Json.createObjectBuilder()
       .add("type", "Feature")
       .add("geometry", Json.createObjectBuilder()
         .add("type", "LineString")
         .add("coordinates", coordinates)
       )
-      .add("properties", Json.createObjectBuilder()
-        .add("timestamp-start", entries.head.timestamp.toString)
-        .add("timestamp-end", entries.last.timestamp.toString))
+      .add("properties", props)
+
 
     Json.createObjectBuilder()
       .add("type", "FeatureCollection")
