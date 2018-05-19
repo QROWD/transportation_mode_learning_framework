@@ -9,7 +9,8 @@ import java.time.{Duration, LocalDateTime}
 import java.time.format.DateTimeFormatter
 
 import scala.collection.JavaConverters._
-import eu.qrowd_project.wp6.transportation_mode_learning.scripts.{ClusterTrip, Trip, TripDetection, WindowDistanceTripDetection}
+
+import eu.qrowd_project.wp6.transportation_mode_learning.scripts._
 import eu.qrowd_project.wp6.transportation_mode_learning.util.LocationEventRecord.dateTimeFormatter
 import eu.qrowd_project.wp6.transportation_mode_learning.util._
 
@@ -35,6 +36,9 @@ import eu.qrowd_project.wp6.transportation_mode_learning.util._
 class Predict(baseDir: String, scriptPath: String, modelPath: String) {
 
   val colors = Seq("red", "green", "blue", "yellow", "olive", "purple")
+  private val dateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
+  def asTimestamp(timestamp: String): Timestamp =
+    Timestamp.valueOf(LocalDateTime.parse(timestamp.substring(0, 14), dateTimeFormatter))
 
   /**
     * Should be the main method which returns ... TODO
@@ -54,11 +58,27 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
     // 2. for each trip, we try to predict the different modes of transportation
     val tripDataWithModeProbs = splittedData.map(data => (data._1, predictModes(data._2)))
 
+    //"20180409134345769","46.09043","11.10995","301.0"
+    //"20180409161831401","46.09118","11.10932","258.0"
+    val testGPS = Seq(
+      TrackPoint(46.09043, 11.10995, asTimestamp("20180409134345769")),
+      TrackPoint(46.09118, 11.10932, asTimestamp("20180409161831401"))
+    )
+    val testAccData = accelerometerData.filter(p => p._4.after(testGPS.head.timestamp) && p._4.before(testGPS.last.timestamp))
+    val testTrip = NonClusterTrip(testGPS.head, testGPS.last, testGPS)
+    val testModeProbs = tripDataWithModeProbs(1)._2.probabilities
+      .filter(e => e._1.after(testTrip.start.timestamp) && e._1.before(testTrip.end.timestamp))
+    visualizeModes(testTrip, ModeProbabilities(tripDataWithModeProbs(1)._2.schema, testModeProbs), 999)
+
     for (((trip, probs), idx) <- tripDataWithModeProbs.zipWithIndex) {
       Files.write(
         Paths.get(s"/tmp/trip${idx}_best_modes.out"),
         getBestModes(probs).mkString("\n").getBytes(Charset.forName("UTF-8")))
-
+      GeoJSONExporter.write(
+        GeoJSONConverter.merge(
+          GeoJSONConverter.toGeoJSONPoints(trip.trace),
+          GeoJSONConverter.toGeoJSONLineString(trip.trace)),
+        s"/tmp/trip${idx}_lines_with_points.json")
       visualizeModes(trip, probs, idx)
     }
 
@@ -73,13 +93,14 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
     // compress the data,
     // i.e. (mode1, mode1, mode1, mode2, mode2, mode1, mode3) -> (mode1, mode2, mode1, mode3)
     val compressedModes = compress(bestModes, f)
+    Files.write(Paths.get(s"/tmp/trip${idx}_compressed_modes.out"), compressedModes.mkString("\n").getBytes)
 
     // pick some colors for each mode
 //    val colors = GeoJSONConverter.colors(6)
 
     val gpsPairs = trip.trace zip trip.trace.tail
 
-    val lineStringsJson = gpsPairs.map {
+    val lineStringsJson = gpsPairs.flatMap {
       case (tp1, tp2) =>
         val begin = tp1.timestamp
         val end = tp2.timestamp
@@ -96,45 +117,69 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
         // get all modes in time range between both GPS points
         val modesBetween = compressedModes.filter(e => e._3.after(begin) && e._3.before(end))
 
+//        println(s"start point:$tp1")
+//        println(s"bearing:$bearing")
+//        println(s"distance(km):$distanceTotalKm")
+//        println(modesBetween.mkString("\n"))
+
+        // the mode after the last point TODO
+//        val nextMode = compressedModes.filter(_._3.after(end)).head
+
 
         if(modesBetween.isEmpty) { // handle no mode between
-          println("no mode")
-          Seq(GeoJSONConverter.toGeoJSONLineString(Seq(tp1, tp2)))
+//          println("no mode")
+          // this happens due to compression, just take the last known mode
+          // TODO we might not have seen any mode before because i) it might be the first point at all and ii) the first in the trip plit
+          val mode = compressedModes.filter(e => e._3.before(tp1.timestamp)).last
+          Seq(GeoJSONConverter.toGeoJSONLineString(
+            Seq(tp1, tp2),
+            Map("stroke" -> colors(modeProbabilities.schema.indexOf(mode._1)),
+                "mode" -> mode._1)
+          ))
         } else if(modesBetween.size == 1) {// handle single mode between
           Seq(GeoJSONConverter.toGeoJSONLineString(
             Seq(tp1, tp2),
-            Map("stroke" -> colors(modeProbabilities.schema.indexOf(modesBetween.head._1)))))
+            Map("stroke" -> colors(modeProbabilities.schema.indexOf(modesBetween.head._1)),
+                "mode" -> modesBetween.head._1))
+          )
         } else {
           // for each mode we compute the distance taken based on time ratio
           // it contains a point and the mode used to this point
           val intermediatePointsWithMode = (modesBetween zip modesBetween.tail).map {
             case ((mode1, maxValue1, t1),(mode2, maxValue2, t2)) =>
-              val timeMs = Duration.between(begin.toLocalDateTime, t2.toLocalDateTime).toMillis
+              val timeMs = Duration.between(t2.toLocalDateTime, begin.toLocalDateTime).toMillis
 
               val ratio = timeMs.toDouble / timeTotalMs
 
               val distanceKm = ratio * distanceTotalKm
 
               val newPoint = TrackpointUtils.pointFrom(tp1, bearing, distanceKm)
+//              println(s"time from start:$timeMs")
+//              println(s"distance from start:$distanceKm")
+//              println(s"new point:$newPoint")
 
               (TrackPoint(newPoint.lat, newPoint.long, t2), mode1)
           }
 
           // generate pairs of points with the mode used in between
-          var first = Seq((tp1, intermediatePointsWithMode.head._1, intermediatePointsWithMode.head._2))
+          val first = Seq((tp1, intermediatePointsWithMode.head._1, intermediatePointsWithMode.head._2))
           val mid =  (intermediatePointsWithMode zip intermediatePointsWithMode.tail).map{
             case ((p1, mode1), (p2, mode2)) =>
               (p1, p2, mode2)
           }
-
+          val last = Seq((intermediatePointsWithMode.last._1, tp2, intermediatePointsWithMode.last._2))
 
           // generate line strings between all points
-          (first ++ mid).map {
-            case (p1, p2, mode) => GeoJSONConverter.toGeoJSONLineString(Seq(p1, p2), Map("stroke" -> colors(modeProbabilities.schema.indexOf(mode))))
+          (first ++ mid ++ last).map {
+            case (p1, p2, mode) =>
+              GeoJSONConverter.toGeoJSONLineString(
+                Seq(p1, p2),
+                Map("stroke" -> colors(modeProbabilities.schema.indexOf(mode)),
+                    "mode" -> mode))
           }
         }
 
-    }.flatten
+    }
 
 //    // build lines JSON object between each mode change
 //    val lineStringsJson = (compressedModes zip compressedModes.tail).map {
@@ -150,7 +195,7 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
     val json = GeoJSONConverter.merge(lineStringsJson :+ pointsJson)
 
     // write to disk
-    GeoJSONExporter.write(json, s"/tmp/trip${idx}_mode_lines.json")
+    GeoJSONExporter.write(json, s"/tmp/trip${idx}_lines_with_points_modes_colored.json")
   }
 
   def toHexString(color: Color):String = "#" + Integer.toHexString(color.getRGB).substring(2)
@@ -265,7 +310,7 @@ object Predict {
   }
 
   private val dateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
-  private def asTimestamp(timestamp :String) =
+  def asTimestamp(timestamp: String): Timestamp =
     Timestamp.valueOf(LocalDateTime.parse(timestamp.substring(0, 14), dateTimeFormatter))
 
 }

@@ -44,15 +44,23 @@ object TrackpointUtils {
     * This formula is for the initial bearing (sometimes referred to as forward azimuth) which if followed in a
     * straight line along a great-circle arc will take you from the start point to the end point.
     *
+    * Bearing would be measured from North direction i.e 0° bearing means North, 90° bearing is East,
+    * 180° bearing is measured to be South, and 270° to be West.
     * @param start the start point
     * @param end   the end point
     * @return bearing in degrees
     */
-  def bearing(start: TrackPoint, end: TrackPoint): Double = {
-    val y = Math.sin(end.long - start.long) * Math.cos(end.lat)
-    val x = Math.cos(start.lat) * Math.sin(end.lat) -
-      Math.sin(start.lat) * Math.cos(end.lat) * Math.cos(end.long - start.long)
-    Math.atan2(y, x).toDegrees
+  def bearing(start: Point, end: Point): Double = {
+    val lat1 = start.lat.toRadians
+    val lat2 = end.lat.toRadians
+    val dLong = (end.long - start.long).toRadians
+    val y = Math.sin(dLong) * Math.cos(lat2)
+    val x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLong)
+    val brng = Math.atan2(y, x).toDegrees
+
+    // since atan2 returns values in the range (-180° ... +180°),
+    // to normalise the result to a compass bearing (in the range 0° ... 360°)
+    (brng + 360) % 360
   }
 
   def haversineDistanceSum[P <: Point](points: Seq[P]): Double =
@@ -110,16 +118,23 @@ object TrackpointUtils {
     * @param R the earth radius
     * @return the new point
     */
-  def pointFrom(tp: TrackPoint, bearing: Double, distanceKm: Double, R: Double = 6378.1): Point = {
+  def pointFrom(tp: Point, bearing: Double, distanceKm: Double, R: Double = 6378.1): Point = {
     val lat1 = Math.toRadians(tp.lat)
     val lon1 = Math.toRadians(tp.long)
 
     val lat2 = Math.asin(Math.sin(lat1) * Math.cos(distanceKm / R) +
-      Math.cos(lat1) * Math.sin(distanceKm / R) * Math.cos(bearing))
+      Math.cos(lat1) * Math.sin(distanceKm / R) * Math.cos(bearing.toRadians))
 
-    val lon2 = lon1 + Math.atan2(Math.sin(bearing) * Math.sin(distanceKm / R) * Math.cos(lat1),
+    val lon2 = lon1 + Math.atan2(Math.sin(bearing.toRadians) * Math.sin(distanceKm / R) * Math.cos(lat1),
       Math.cos(distanceKm / R) - Math.sin(lat1) * Math.sin(lat2))
 
     Point(Math.toDegrees(lat2), Math.toDegrees(lon2))
+  }
+
+  def main(args: Array[String]): Unit = {
+    println(TrackpointUtils.bearing(Point(39.099912, -94.581213), Point(38.627089, -90.200203)))
+    println(TrackpointUtils.bearing(Point(46.09043, 11.10995), Point(46.09118, 11.10932)))
+
+    println(TrackpointUtils.pointFrom(Point(46.09043, 11.10995), 329.77, 0.04))
   }
 }
