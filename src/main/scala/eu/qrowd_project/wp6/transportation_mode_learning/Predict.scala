@@ -87,6 +87,7 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
   }
 
   private def visualizeModes(trip: Trip, modeProbabilities: ModeProbabilities, idx: Int) = {
+    println(s"visualizing trip$idx ...")
     val bestModes = getBestModes(modeProbabilities).distinct.toList
     val f = (e1: (String, Double, Timestamp), e2: (String, Double, Timestamp)) => e1._1 == e2._1
 
@@ -98,6 +99,7 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
     // pick some colors for each mode
 //    val colors = GeoJSONConverter.colors(6)
 
+    // we generate pairs of GPS points, i.e. from (p1, p2, p3, ..., pn) we get ((p1, p2), (p2, p3), ..., (p(n-1), pn)
     val gpsPairs = trip.trace zip trip.trace.tail
 
     val lineStringsJson = gpsPairs.flatMap {
@@ -126,20 +128,43 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
 //        val nextMode = compressedModes.filter(_._3.after(end)).head
 
 
-        if(modesBetween.isEmpty) { // handle no mode between
+        if(modesBetween.isEmpty) { // handle no mode change between both points
 //          println("no mode")
           // this happens due to compression, just take the last known mode
-          // TODO we might not have seen any mode before because i) it might be the first point at all and ii) the first in the trip plit
+          // TODO we might not have seen any mode before because i) it might be the first point at all and ii) the first in the trip split
           val mode = compressedModes.filter(e => e._3.before(tp1.timestamp)).last
           Seq(GeoJSONConverter.toGeoJSONLineString(
             Seq(tp1, tp2),
             Map("stroke" -> colors(modeProbabilities.schema.indexOf(mode._1)),
                 "mode" -> mode._1)
           ))
-        } else if(modesBetween.size == 1) {// handle single mode between
-          Seq(GeoJSONConverter.toGeoJSONLineString(
-            Seq(tp1, tp2),
-            Map("stroke" -> colors(modeProbabilities.schema.indexOf(modesBetween.head._1)),
+        } else if(modesBetween.size == 1) { // handle single mode change between both points
+          // compute the split point
+//          val modeChange = modesBetween.head
+//          val timeMs = Duration.between(modeChange._3.toLocalDateTime, begin.toLocalDateTime).toMillis
+//          val ratio = timeMs.toDouble / timeTotalMs
+//          val distanceKm = ratio * distanceTotalKm
+//          val splitPoint = TrackpointUtils.pointFrom(tp1, bearing, distanceKm)
+//          val newTP = TrackPoint(splitPoint.lat, splitPoint.long, modeChange._3)
+//
+//          // get the last mode before the starting point
+//          val lastMode = compressedModes.filter(e => e._3.before(tp1.timestamp)).last
+
+          // return the 2 JSON lines
+//          Seq(
+//            GeoJSONConverter.toGeoJSONLineString(
+//              Seq(tp1, newTP),
+//              Map("stroke" -> colors(modeProbabilities.schema.indexOf(lastMode._1)),
+//                "mode" -> lastMode._1)),
+//            GeoJSONConverter.toGeoJSONLineString(
+//            Seq(newTP, tp2),
+//            Map("stroke" -> colors(modeProbabilities.schema.indexOf(modesBetween.head._1)),
+//                "mode" -> modesBetween.head._1))
+//          )
+          Seq(
+            GeoJSONConverter.toGeoJSONLineString(
+              Seq(tp1, tp2),
+              Map("stroke" -> colors(modeProbabilities.schema.indexOf(modesBetween.head._1)),
                 "mode" -> modesBetween.head._1))
           )
         } else {
