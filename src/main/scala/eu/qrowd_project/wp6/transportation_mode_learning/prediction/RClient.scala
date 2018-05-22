@@ -60,7 +60,7 @@ class RClient(baseDir: String, scriptPath: String, modelPath: String) {
   def readOutput(): (Seq[String], mutable.Buffer[(Double, Double, Double, Double, Double, Double)]) = {
     val outputCSV = Paths.get(baseDir).resolve("out.csv")
     val lines = Files.readAllLines(outputCSV).asScala // read all lines
-    val header = lines.head.split(",").toSeq
+    val header = lines.head.replace("\"", "").split(",").toSeq
     val probabilities = lines
       .drop(1) // skip header
       .map(line => line.split(",").map(_.toDouble)) // split by comma
