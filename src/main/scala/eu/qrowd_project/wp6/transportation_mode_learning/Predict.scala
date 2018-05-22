@@ -1,17 +1,16 @@
 package eu.qrowd_project.wp6.transportation_mode_learning
 
 import java.awt.Color
-import java.io.File
 import java.nio.charset.Charset
 import java.nio.file.{Files, Paths}
 import java.sql.Timestamp
-import java.time.{Duration, LocalDateTime}
 import java.time.format.DateTimeFormatter
+import java.time.{Duration, LocalDateTime}
 
 import scala.collection.JavaConverters._
 
+import eu.qrowd_project.wp6.transportation_mode_learning.prediction.{ModeProbabilities, RClient}
 import eu.qrowd_project.wp6.transportation_mode_learning.scripts._
-import eu.qrowd_project.wp6.transportation_mode_learning.util.LocationEventRecord.dateTimeFormatter
 import eu.qrowd_project.wp6.transportation_mode_learning.util._
 
 
@@ -35,6 +34,10 @@ import eu.qrowd_project.wp6.transportation_mode_learning.util._
   */
 class Predict(baseDir: String, scriptPath: String, modelPath: String) {
 
+  val logger = com.typesafe.scalalogging.Logger("Predict")
+
+  val rClient = new RClient(baseDir, scriptPath, modelPath)
+
   val colors = Seq("red", "green", "blue", "yellow", "olive", "purple")
   private val dateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
   def asTimestamp(timestamp: String): Timestamp =
@@ -54,21 +57,20 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
     // 1. we split the data into trips
     val splittedData = splitTrips(gpsTrajectory, accelerometerData)
 
-
     // 2. for each trip, we try to predict the different modes of transportation
-    val tripDataWithModeProbs = splittedData.map(data => (data._1, predictModes(data._2)))
+    val tripDataWithModeProbs = splittedData.map(data => (data._1, rClient.predict(data._2)))
 
-    //"20180409134345769","46.09043","11.10995","301.0"
-    //"20180409161831401","46.09118","11.10932","258.0"
-    val testGPS = Seq(
-      TrackPoint(46.09043, 11.10995, asTimestamp("20180409134345769")),
-      TrackPoint(46.09118, 11.10932, asTimestamp("20180409161831401"))
-    )
-    val testAccData = accelerometerData.filter(p => p._4.after(testGPS.head.timestamp) && p._4.before(testGPS.last.timestamp))
-    val testTrip = NonClusterTrip(testGPS.head, testGPS.last, testGPS)
-    val testModeProbs = tripDataWithModeProbs(1)._2.probabilities
-      .filter(e => e._1.after(testTrip.start.timestamp) && e._1.before(testTrip.end.timestamp))
-    visualizeModes(testTrip, ModeProbabilities(tripDataWithModeProbs(1)._2.schema, testModeProbs), 999)
+//    //"20180409134345769","46.09043","11.10995","301.0"
+//    //"20180409161831401","46.09118","11.10932","258.0"
+//    val testGPS = Seq(
+//      TrackPoint(46.09043, 11.10995, asTimestamp("20180409134345769")),
+//      TrackPoint(46.09118, 11.10932, asTimestamp("20180409161831401"))
+//    )
+//    val testAccData = accelerometerData.filter(p => p._4.after(testGPS.head.timestamp) && p._4.before(testGPS.last.timestamp))
+//    val testTrip = NonClusterTrip(testGPS.head, testGPS.last, testGPS)
+//    val testModeProbs = tripDataWithModeProbs(1)._2.probabilities
+//      .filter(e => e._1.after(testTrip.start.timestamp) && e._1.before(testTrip.end.timestamp))
+//    visualizeModes(testTrip, ModeProbabilities(tripDataWithModeProbs(1)._2.schema, testModeProbs), 999)
 
     for (((trip, probs), idx) <- tripDataWithModeProbs.zipWithIndex) {
       Files.write(
@@ -87,7 +89,7 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
   }
 
   private def visualizeModes(trip: Trip, modeProbabilities: ModeProbabilities, idx: Int) = {
-    println(s"visualizing trip$idx ...")
+    logger.debug(s"visualizing trip$idx ...")
     val bestModes = getBestModes(modeProbabilities).distinct.toList
     val f = (e1: (String, Double, Timestamp), e2: (String, Double, Timestamp)) => e1._1 == e2._1
 
@@ -140,33 +142,33 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
           ))
         } else if(modesBetween.size == 1) { // handle single mode change between both points
           // compute the split point
-//          val modeChange = modesBetween.head
-//          val timeMs = Duration.between(modeChange._3.toLocalDateTime, begin.toLocalDateTime).toMillis
-//          val ratio = timeMs.toDouble / timeTotalMs
-//          val distanceKm = ratio * distanceTotalKm
-//          val splitPoint = TrackpointUtils.pointFrom(tp1, bearing, distanceKm)
-//          val newTP = TrackPoint(splitPoint.lat, splitPoint.long, modeChange._3)
-//
-//          // get the last mode before the starting point
-//          val lastMode = compressedModes.filter(e => e._3.before(tp1.timestamp)).last
+          val modeChange = modesBetween.head
+          val timeMs = Duration.between(modeChange._3.toLocalDateTime, begin.toLocalDateTime).toMillis
+          val ratio = timeMs.toDouble / timeTotalMs
+          val distanceKm = ratio * distanceTotalKm
+          val splitPoint = TrackpointUtils.pointFrom(tp1, bearing, distanceKm)
+          val newTP = TrackPoint(splitPoint.lat, splitPoint.long, modeChange._3)
+
+          // get the last mode before the starting point if exists, otherwise use mode change inside
+          val lastMode = compressedModes.filter(e => e._3.before(tp1.timestamp)).lastOption.getOrElse(modeChange)
 
           // return the 2 JSON lines
-//          Seq(
-//            GeoJSONConverter.toGeoJSONLineString(
-//              Seq(tp1, newTP),
-//              Map("stroke" -> colors(modeProbabilities.schema.indexOf(lastMode._1)),
-//                "mode" -> lastMode._1)),
-//            GeoJSONConverter.toGeoJSONLineString(
-//            Seq(newTP, tp2),
-//            Map("stroke" -> colors(modeProbabilities.schema.indexOf(modesBetween.head._1)),
-//                "mode" -> modesBetween.head._1))
-//          )
           Seq(
             GeoJSONConverter.toGeoJSONLineString(
-              Seq(tp1, tp2),
-              Map("stroke" -> colors(modeProbabilities.schema.indexOf(modesBetween.head._1)),
-                "mode" -> modesBetween.head._1))
+              Seq(tp1, newTP),
+              Map("stroke" -> colors(modeProbabilities.schema.indexOf(lastMode._1)),
+                "mode" -> lastMode._1)),
+            GeoJSONConverter.toGeoJSONLineString(
+            Seq(newTP, tp2),
+            Map("stroke" -> colors(modeProbabilities.schema.indexOf(modeChange._1)),
+                "mode" -> modeChange._1))
           )
+//          Seq(
+//            GeoJSONConverter.toGeoJSONLineString(
+//              Seq(tp1, tp2),
+//              Map("stroke" -> colors(modeProbabilities.schema.indexOf(modesBetween.head._1)),
+//                "mode" -> modesBetween.head._1))
+//          )
         } else {
           // for each mode we compute the distance taken based on time ratio
           // it contains a point and the mode used to this point
@@ -187,6 +189,7 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
           }
 
           // generate pairs of points with the mode used in between
+          // TODO actually, the first mode should come from before the GPS point instead of the next mode change, but just for rendering it's ok
           val first = Seq((tp1, intermediatePointsWithMode.head._1, intermediatePointsWithMode.head._2))
           val mid =  (intermediatePointsWithMode zip intermediatePointsWithMode.tail).map{
             case ((p1, mode1), (p2, mode2)) =>
@@ -223,6 +226,11 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
     GeoJSONExporter.write(json, s"/tmp/trip${idx}_lines_with_points_modes_colored.json")
   }
 
+//  private def propertiesFor(mode: String) =
+//    Map(
+//      "stroke" -> colors(mode),
+//      "mode" -> mode)
+
   def toHexString(color: Color):String = "#" + Integer.toHexString(color.getRGB).substring(2)
 
   private def compress[A](l: List[A], fn: (A, A) => Boolean):List[A] = l.foldLeft(List[A]()) {
@@ -250,11 +258,12 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
   private def splitTrips(gpsTrajectory: Seq[TrackPoint],
                                     accelerometerData: Seq[(Double, Double, Double, Timestamp)])
   : Seq[(Trip, Seq[(Double, Double, Double, Timestamp)])] = {
-
+    logger.debug("splitting data into trips ...")
 
     // detect trips based on GPS data
     val tripDetector = new WindowDistanceTripDetection(300, 60, 0.25, 5, 7)
     val trips = tripDetector.find(gpsTrajectory)
+    logger.debug(s"got ${trips.size} trips")
 
     // split the accelerometer data based on the GPS trips
     val splittedData = trips.map(trip => {
@@ -263,58 +272,14 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
 
     splittedData
   }
-
-
-  /**
-    * Calls the mode prediction given the accelerometer data.
-    *
-    * @param accelerometerData x,y,z values of the raw accelerometer data
-    */
-  def predictModes(accelerometerData: Seq[(Double, Double, Double, Timestamp)]) = {
-
-    // write data as CSV to disk
-    val inputFile = File.createTempFile("qrowddata", ".tmp").toPath
-    val content = "x,y,z\n" + accelerometerData.map(entry => (entry._1, entry._2, entry._3).productIterator.mkString(",")).mkString("\n")
-    Files.write(inputFile, content.getBytes("UTF-8"))
-
-    // call external R script
-    val command = s"Rscript --vanilla $scriptPath prediction $modelPath ${inputFile.toFile.getAbsolutePath} "
-    sys.process.Process(command, new java.io.File(baseDir)).!
-
-    // read output from CSV to internal list
-    val outputCSV = Paths.get(baseDir).resolve("out.csv")
-    val lines = Files.readAllLines(outputCSV).asScala // read all lines
-    val header = lines.head.split(",").toSeq
-    val probabilities = lines
-      .drop(1) // skip header
-      .map(line => line.split(",").map(_.toDouble)) // split by comma
-      .map { case Array(a, b, c, d, e, f) => (a, b, c, d, e, f)} // convert probabilities to tuple
-
-    // keep track of timestamp from input
-    val probsWithTime = (accelerometerData zip probabilities).map(pair => {
-      (pair._1._4, pair._2._1, pair._2._2, pair._2._3,pair._2._4, pair._2._5, pair._2._6)
-    })
-
-    val predictedProbabilities = ModeProbabilities(header, probsWithTime)
-
-    assert(accelerometerData.size == probabilities.size)
-
-
-    predictedProbabilities
-  }
-
-}
-
-case class ModeProbabilities(schema: Seq[String], probabilities: Seq[(Timestamp, Double, Double, Double, Double, Double, Double)]) {
-  override def toString: String = s"$schema\n${probabilities.take(20)} (${Math.max(0, probabilities.size - 20)} remaining)"
 }
 
 object Predict {
 
   def main(args: Array[String]): Unit = {
-    val gpsPath = args(0)
-    val accPath = args(1)
-    val rScriptPath = args(2)
+    val rScriptPath = args(0)
+    val gpsPath = args(1)
+    val accPath = args(2)
 
     val gpsData = Files.readAllLines(Paths.get(gpsPath)).asScala
       .drop(1)
