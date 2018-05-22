@@ -39,6 +39,16 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
   val rClient = new RClient(baseDir, scriptPath, modelPath)
 
   val colors = Seq("red", "green", "blue", "yellow", "olive", "purple")
+
+  val colorMapping = Map(
+    "bike" -> "red",
+    "bus" -> "green",
+    "car" -> "blue",
+    "still" -> "yellow",
+    "train" -> "olive",
+    "walk" -> "purple"
+  )
+
   private val dateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
   def asTimestamp(timestamp: String): Timestamp =
     Timestamp.valueOf(LocalDateTime.parse(timestamp.substring(0, 14), dateTimeFormatter))
@@ -135,11 +145,7 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
           // this happens due to compression, just take the last known mode
           // TODO we might not have seen any mode before because i) it might be the first point at all and ii) the first in the trip split
           val mode = compressedModes.filter(e => e._3.before(tp1.timestamp)).last
-          Seq(GeoJSONConverter.toGeoJSONLineString(
-            Seq(tp1, tp2),
-            Map("stroke" -> colors(modeProbabilities.schema.indexOf(mode._1)),
-                "mode" -> mode._1)
-          ))
+          Seq(GeoJSONConverter.toGeoJSONLineString(Seq(tp1, tp2), propertiesFor(mode._1)))
         } else if(modesBetween.size == 1) { // handle single mode change between both points
           // compute the split point
           val modeChange = modesBetween.head
@@ -154,14 +160,8 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
 
           // return the 2 JSON lines
           Seq(
-            GeoJSONConverter.toGeoJSONLineString(
-              Seq(tp1, newTP),
-              Map("stroke" -> colors(modeProbabilities.schema.indexOf(lastMode._1)),
-                "mode" -> lastMode._1)),
-            GeoJSONConverter.toGeoJSONLineString(
-            Seq(newTP, tp2),
-            Map("stroke" -> colors(modeProbabilities.schema.indexOf(modeChange._1)),
-                "mode" -> modeChange._1))
+            GeoJSONConverter.toGeoJSONLineString(Seq(tp1, newTP), propertiesFor(lastMode._1)),
+            GeoJSONConverter.toGeoJSONLineString(Seq(newTP, tp2),propertiesFor(modeChange._1))
           )
 //          Seq(
 //            GeoJSONConverter.toGeoJSONLineString(
@@ -200,10 +200,7 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
           // generate line strings between all points
           (first ++ mid ++ last).map {
             case (p1, p2, mode) =>
-              GeoJSONConverter.toGeoJSONLineString(
-                Seq(p1, p2),
-                Map("stroke" -> colors(modeProbabilities.schema.indexOf(mode)),
-                    "mode" -> mode))
+              GeoJSONConverter.toGeoJSONLineString(Seq(p1, p2), propertiesFor(mode))
           }
         }
 
@@ -226,10 +223,11 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
     GeoJSONExporter.write(json, s"/tmp/trip${idx}_lines_with_points_modes_colored.json")
   }
 
-//  private def propertiesFor(mode: String) =
-//    Map(
-//      "stroke" -> colors(mode),
-//      "mode" -> mode)
+  private def propertiesFor(mode: String) =
+    Map(
+      "stroke" -> colorMapping(mode),
+      "stroke-width" -> "2",
+      "mode" -> mode)
 
   def toHexString(color: Color):String = "#" + Integer.toHexString(color.getRGB).substring(2)
 
