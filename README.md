@@ -5,7 +5,7 @@
 |                                    |                                                                          explanation                                                                           |  |
 |------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|--|
 | transportation modes               | car, walk, cycle, underground, train, bus, etc.                                                                                                                |  |
-| GPS point                          | (longitude ,latitude, altitude)                                                                                                                                |  |
+| GPS point                          | (longitude ,latitude, altitude, timestamp)                                                                                                                                |  |
 | GPS data/sequence/trajectory/track | a sequence of GPS points                                                                                                                                       |  |
 | segment                            | the route between any two consecutive GPS points                                                                                                               |  |
 | stage                              | group of segments, each new stage defined when there is a change from one mode of transport to another, or where there is a change in vehicle of the same mode |  |
