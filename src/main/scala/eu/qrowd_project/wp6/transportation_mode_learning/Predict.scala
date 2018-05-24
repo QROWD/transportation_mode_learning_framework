@@ -9,7 +9,7 @@ import java.time.{Duration, LocalDateTime}
 
 import scala.collection.JavaConverters._
 
-import eu.qrowd_project.wp6.transportation_mode_learning.prediction.{ModeProbabilities, RClient}
+import eu.qrowd_project.wp6.transportation_mode_learning.prediction.{ModeProbabilities, RClient, RClientServer}
 import eu.qrowd_project.wp6.transportation_mode_learning.scripts._
 import eu.qrowd_project.wp6.transportation_mode_learning.util._
 
@@ -27,16 +27,17 @@ import eu.qrowd_project.wp6.transportation_mode_learning.util._
   * 3. determine mode transitions
   *
   * @param baseDir base directory of the R project
-  * @param scriptPath path to the R script
+  * @param serverScriptPath path to the R server script
   * @param modelPath path to the R model
   *
   * @author Lorenz Buehmann
   */
-class Predict(baseDir: String, scriptPath: String, modelPath: String) {
+class Predict(baseDir: String, serverScriptPath: String, clientScriptPath: String, modelPath: String) {
 
   val logger = com.typesafe.scalalogging.Logger("Predict")
 
-  val rClient = new RClient(baseDir, scriptPath, modelPath)
+//  val rClient = new RClient(baseDir, scriptPath, modelPath)
+  val rClient = new RClientServer(baseDir, serverScriptPath, clientScriptPath, modelPath)
 
   val colors = Seq("red", "green", "blue", "yellow", "olive", "purple")
 
@@ -93,6 +94,8 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
         s"/tmp/trip${idx}_lines_with_points.json")
       visualizeModes(trip, probs, idx)
     }
+
+    rClient.stop()
 
     tripDataWithModeProbs
 
@@ -290,7 +293,8 @@ object Predict {
       .map{case Array(t, x, y, z) => (x.toDouble, y.toDouble, z.toDouble, asTimestamp(t))}
 
     val res = new Predict(rScriptPath,
-      s"$rScriptPath/run.r",
+      s"$rScriptPath/prediction_server.R",
+      s"$rScriptPath/prediction_client.R",
       s"$rScriptPath/model.rds")
       .predict(gpsData, accelerometerData)
 
