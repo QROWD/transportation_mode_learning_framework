@@ -1,5 +1,18 @@
 # transportation_mode_learning_framework
 
+## Nomenclature
+
+|                                    |                                                                          explanation                                                                           |  |
+|------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|--|
+| transportation modes               | car, walk, cycle, underground, train, bus, etc.                                                                                                                |  |
+| GPS point                          | (longitude ,latitude, altitude)                                                                                                                                |  |
+| GPS data/sequence/trajectory/track | a sequence of GPS points                                                                                                                                       |  |
+| segment                            | the route between any two consecutive GPS points                                                                                                               |  |
+| stage                              | group of segments, each new stage defined when there is a change from one mode of transport to another, or where there is a change in vehicle of the same mode |  |
+| trip                               | sequence of stages                                                                                                                                             |  |
+
+
+
 ## Debugging of predicted mode based on accelerometer data
 
 main class: `eu.qrowd_project.wp6.transportation_mode_learning.Predict`
