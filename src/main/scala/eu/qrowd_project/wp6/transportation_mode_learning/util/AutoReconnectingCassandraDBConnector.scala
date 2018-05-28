@@ -1,6 +1,6 @@
 package eu.qrowd_project.wp6.transportation_mode_learning.util
 
-import com.datastax.driver.core.{Cluster, Session}
+import com.datastax.driver.core.{Cluster, Session, SocketOptions}
 
 /**
   * Establishes a connection proxy which is able to reconnect to the
@@ -27,9 +27,9 @@ class AutoReconnectingCassandraDBConnector extends CassandraDBConnector {
               config.getString("connection.credentials.user"),
               config.getString("connection.credentials.password"))
             .withMaxSchemaAgreementWaitSeconds(60)
-            //      .withSocketOptions(new SocketOptions()
-            //        .setConnectTimeoutMillis(120000)
-            //        .setReadTimeoutMillis(120000))
+                  .withSocketOptions(new SocketOptions()
+                    .setConnectTimeoutMillis(30000)
+                    .setReadTimeoutMillis(30000))
             .build
           _cluster = builder.build
           clusterSetUpSuccessfully = true
