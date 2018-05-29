@@ -10,7 +10,7 @@ import java.util.Date
 
 import breeze.io.CSVWriter
 import com.datastax.driver.core.exceptions.{InvalidQueryException, UnauthorizedException}
-import com.datastax.driver.core.{Cluster, KeyspaceMetadata, Session, SocketOptions}
+import com.datastax.driver.core.{Cluster, KeyspaceMetadata, ResultSet, Session, SocketOptions}
 import com.typesafe.config.ConfigFactory
 
 import scala.collection.JavaConversions._
@@ -41,8 +41,8 @@ class CassandraDBConnector(val userIds: Seq[String] = Seq()) {
         config.getString("connection.credentials.password"))
       .withMaxSchemaAgreementWaitSeconds(60)
       .withSocketOptions(new SocketOptions()
-        .setConnectTimeoutMillis(120000)
-        .setReadTimeoutMillis(120000))
+        .setConnectTimeoutMillis(30000)
+        .setReadTimeoutMillis(30000))
       .build
     val cluster = builder.build
     _clusterInitialized = true
@@ -66,14 +66,14 @@ class CassandraDBConnector(val userIds: Seq[String] = Seq()) {
     * @param day the date you want to query for. format: `yyyymmdd`
     * @return users with their location event records
     */
-  def readData(day: String): Seq[(String, Seq[LocationEventRecord])] = {
+  def readData(day: String, accuracyTrhreshold: Int = Int.MaxValue): Seq[(String, Seq[LocationEventRecord])] = {
     // get all the keyspaces
     val keyspaces = cluster.getMetadata.getKeyspaces
 
-    runQuery(keyspaces, session, day)
+    runQuery(keyspaces, session, day, accuracyTrhreshold)
   }
 
-  def runQuery(keyspaces: util.List[KeyspaceMetadata], session: Session, day: String): Seq[(String, Seq[LocationEventRecord])] = {
+  def runQuery(keyspaces: util.List[KeyspaceMetadata], session: Session, day: String, accuracyThreshold: Int): Seq[(String, Seq[LocationEventRecord])] = {
     var data: Seq[(String, Seq[LocationEventRecord])] = Seq()
 
     // loop over each keyspace
@@ -82,12 +82,15 @@ class CassandraDBConnector(val userIds: Seq[String] = Seq()) {
 
       try {
         // execute the select query for all the positions collected from the user (usersalt) for a specific day (daystring)
-        val resultSet = session.execute("SELECT * FROM " + usersalt + ".locationeventpertime WHERE day='" + day + "'")
+        val resultSet: ResultSet = session.execute("SELECT * FROM " + usersalt + ".locationeventpertime WHERE day='" + day + "'")
 
         // if at this point there is no error means that you have select permissions and then the user belongs to QROWD
         logger.debug(s"User $usersalt belonging to QROWD :)")
         if (resultSet != null) {
-          val entries = resultSet.map(row => LocationEventRecord.from(row)).toSeq
+          var entries = resultSet.map(row => LocationEventRecord.from(row)).toSeq
+          logger.debug(s"--------------------- Num records before filtering: ${entries.size}")
+          entries = entries.filter(_.accuracy < accuracyThreshold)
+          logger.debug(s"--------------------- Num records after filtering (<$accuracyThreshold): ${entries.size}")
           data :+= (usersalt, entries)
         }
       } catch {

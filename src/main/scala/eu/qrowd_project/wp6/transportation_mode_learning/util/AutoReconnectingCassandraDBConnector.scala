@@ -63,13 +63,13 @@ class AutoReconnectingCassandraDBConnector extends CassandraDBConnector {
     _session
   }
 
-  override def readData(day: String): Seq[(String, Seq[LocationEventRecord])] = {
+  override def readData(day: String, accuracyThreshold: Int = Int.MaxValue): Seq[(String, Seq[LocationEventRecord])] = {
     var dataReadSuccessfully = false
     var res = Seq.empty[(String, Seq[LocationEventRecord])]
 
     while (!dataReadSuccessfully) {
       try {
-        res = runQuery(cluster.getMetadata.getKeyspaces, session, day)
+        res = runQuery(cluster.getMetadata.getKeyspaces, session, day, accuracyThreshold)
         dataReadSuccessfully = true
       } catch {
         case t: Throwable =>
