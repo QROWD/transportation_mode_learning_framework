@@ -1,6 +1,7 @@
 package eu.qrowd_project.wp6.transportation_mode_learning.util
 
 import java.sql.{Connection, DriverManager, ResultSet}
+import java.time.format.DateTimeFormatter
 
 import eu.qrowd_project.wp6.transportation_mode_learning.Pilot2Stage
 
@@ -39,6 +40,8 @@ trait SQLiteAccess2ndPilot {
     }
   }
 
+  val dateTimeFormatter = DateTimeFormatter.ofPattern("YYYY-MM-dd HH:mm:ss")
+
   def writeTripInfo(trip: Pilot2Stage): Unit = {
     // long, lat
     val queryStr =
@@ -56,11 +59,11 @@ trait SQLiteAccess2ndPilot {
          |VALUES (
          |  ${trip.tripID},
          |  '${trip.userID}',
-         |  '${trip.start.long}, ${trip.start.lat}',
-         |  '${trip.start.timestamp.toLocalDateTime.toString}',
+         |  '[${trip.start.lat},${trip.start.long}]',
+         |  '${trip.start.timestamp.toLocalDateTime.format(dateTimeFormatter)}',
          |  '${trip.startAddress.label.replace("'", "")}',
          |  '${trip.stop.long}, ${trip.stop.lat}',
-         |  '${trip.stop.timestamp.toLocalDateTime.toString}',
+         |  '${trip.stop.timestamp.toLocalDateTime..format(dateTimeFormatter)}',
          |  '${trip.stopAddress.label.replace("'", "")}'
          |);
        """.stripMargin
