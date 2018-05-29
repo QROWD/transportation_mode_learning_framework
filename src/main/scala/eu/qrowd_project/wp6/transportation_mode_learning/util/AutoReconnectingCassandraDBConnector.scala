@@ -81,11 +81,11 @@ class AutoReconnectingCassandraDBConnector extends CassandraDBConnector {
   }
 
   override def close(): Unit = {
-    if(_session != null || !_session.isClosed) {
+    if(_session != null && !_session.isClosed) {
       logger.info("stopping Cassandra session ...")
       session.close()
     }
-    if(_cluster != null || !_cluster.isClosed) {
+    if(_cluster != null && !_cluster.isClosed) {
       logger.info("stopping Cassandra cluster ...")
       cluster.close()
     }
