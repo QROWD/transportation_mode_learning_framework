@@ -29,6 +29,11 @@ class CassandraDBConnector(val userIds: Seq[String] = Seq()) {
 
   lazy val config = ConfigFactory.parseFile(new File(getClass.getClassLoader.getResource("cassandra.conf").toURI))
 
+  // FIXME: copied over from LocationEventRecord
+  private val dateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
+  def asTimestamp(timestamp :String): Timestamp =
+    Timestamp.valueOf(LocalDateTime.parse(timestamp.substring(0, 14), dateTimeFormatter))
+
   private lazy val cluster: Cluster = {
     logger.info("setting up Cassandra cluster...")
 
@@ -72,6 +77,28 @@ class CassandraDBConnector(val userIds: Seq[String] = Seq()) {
 
     runQuery(keyspaces, session, day, accuracyTrhreshold)
   }
+
+  def getAccDataForUserAndDay(userID: String, day: String): Seq[AccelerometerRecord] = {
+    val resultSet: ResultSet = session.execute(
+      s"SELECT * FROM $userID.accelerometerevent WHERE day='$day'")
+
+    if (resultSet != null) {
+      val res: Seq[AccelerometerRecord] = resultSet.map(row => {
+          val x = row.getFloat("x").toDouble
+          val y = row.getFloat("y").toDouble
+          val z = row.getFloat("z").toDouble
+          val timestamp = asTimestamp(row.getString("timestamp"))
+
+          AccelerometerRecord(x, y, z, timestamp)
+        }).toSeq
+
+      res
+    } else {
+      Seq.empty[AccelerometerRecord]
+    }
+
+  }
+
 
   def runQuery(keyspaces: util.List[KeyspaceMetadata], session: Session, day: String, accuracyThreshold: Int): Seq[(String, Seq[LocationEventRecord])] = {
     var data: Seq[(String, Seq[LocationEventRecord])] = Seq()
