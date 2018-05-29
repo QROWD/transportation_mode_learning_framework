@@ -93,7 +93,7 @@ class Predict(baseDir: String, serverScriptPath: String, clientScriptPath: Strin
           bestModes.mkString("\n").getBytes(Charset.forName("UTF-8")))
 
         // cleaned best modes
-        val cleanedBestModes = MajorityVoteTripCleaning(100).clean(trip, bestModes)._2
+        val cleanedBestModes = MajorityVoteTripCleaning(100, iterations = 10).clean(trip, bestModes)._2
         Files.write(
           Paths.get(s"/tmp/trip${idx}_best_modes_cleaned.out"),
           cleanedBestModes.mkString("\n").getBytes(Charset.forName("UTF-8")))
