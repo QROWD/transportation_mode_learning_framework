@@ -2,7 +2,7 @@ package eu.qrowd_project.wp6.transportation_mode_learning.util
 
 import java.sql.{Connection, DriverManager, ResultSet}
 
-import eu.qrowd_project.wp6.transportation_mode_learning.Pilot2Trip
+import eu.qrowd_project.wp6.transportation_mode_learning.Pilot2Stage
 
 import scala.collection.JavaConversions._
 
@@ -39,7 +39,7 @@ trait SQLiteAccess2ndPilot {
     }
   }
 
-  def writeTripInfo(trip: Pilot2Trip): Unit = {
+  def writeTripInfo(trip: Pilot2Stage): Unit = {
     // long, lat
     val queryStr =
       s"""

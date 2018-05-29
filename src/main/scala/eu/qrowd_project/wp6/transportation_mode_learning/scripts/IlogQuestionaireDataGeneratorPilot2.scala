@@ -9,7 +9,7 @@ import java.util.concurrent.TimeUnit
 import javax.json.Json
 
 import com.typesafe.config.ConfigFactory
-import eu.qrowd_project.wp6.transportation_mode_learning.Pilot2Trip
+import eu.qrowd_project.wp6.transportation_mode_learning.Pilot2Stage
 import eu.qrowd_project.wp6.transportation_mode_learning.util._
 import scopt.Read
 
@@ -294,7 +294,8 @@ object IlogQuestionaireDataGeneratorPilot2 extends JSONExporter with ParquetLoca
       val addressEnd: Address = e._6
 //      val poiEnd: POI = e._7
 
-      val trip = Pilot2Trip(userID, startPoint, addressStart, endPoint, addressEnd)
+      val trip = Pilot2Stage(
+        userID, startPoint, addressStart, endPoint, addressEnd, trajectory = Seq.empty)
 
       writeTripInfo(trip)
     })
