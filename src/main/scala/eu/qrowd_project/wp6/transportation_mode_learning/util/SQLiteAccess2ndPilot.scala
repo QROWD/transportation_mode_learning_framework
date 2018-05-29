@@ -63,7 +63,7 @@ trait SQLiteAccess2ndPilot {
          |  '${trip.start.timestamp.toLocalDateTime.format(dateTimeFormatter)}',
          |  '${trip.startAddress.label.replace("'", "")}',
          |  '${trip.stop.long}, ${trip.stop.lat}',
-         |  '${trip.stop.timestamp.toLocalDateTime..format(dateTimeFormatter)}',
+         |  '${trip.stop.timestamp.toLocalDateTime.format(dateTimeFormatter)}',
          |  '${trip.stopAddress.label.replace("'", "")}'
          |);
        """.stripMargin
