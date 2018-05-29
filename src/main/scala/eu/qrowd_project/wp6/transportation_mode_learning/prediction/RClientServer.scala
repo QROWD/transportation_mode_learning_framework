@@ -28,7 +28,7 @@ class RClientServer(baseDir: String, serverScriptPath: String, clientScriptPath:
     println(command)
     serverProcess = sys.process.Process(command, new java.io.File(baseDir)).run()
     Thread.sleep(5000)
-    logger.debug("sucessfully started R server.")
+    logger.debug("successfully started R server.")
   }
 
   /**

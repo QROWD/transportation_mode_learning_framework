@@ -9,7 +9,7 @@ import java.time.{Duration, LocalDateTime}
 
 import scala.collection.JavaConverters._
 
-import eu.qrowd_project.wp6.transportation_mode_learning.prediction.{ModeProbabilities, RClient, RClientServer}
+import eu.qrowd_project.wp6.transportation_mode_learning.prediction.{MajorityVoteTripCleaning, ModeProbabilities, RClient, RClientServer}
 import eu.qrowd_project.wp6.transportation_mode_learning.scripts._
 import eu.qrowd_project.wp6.transportation_mode_learning.util._
 
@@ -50,6 +50,8 @@ class Predict(baseDir: String, serverScriptPath: String, clientScriptPath: Strin
     "walk" -> "purple"
   )
 
+  val debug: Boolean = true
+
   private val dateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
   def asTimestamp(timestamp: String): Timestamp =
     Timestamp.valueOf(LocalDateTime.parse(timestamp.substring(0, 14), dateTimeFormatter))
@@ -69,7 +71,41 @@ class Predict(baseDir: String, serverScriptPath: String, clientScriptPath: Strin
     val splittedData = splitTrips(gpsTrajectory, accelerometerData)
 
     // 2. for each trip, we try to predict the different modes of transportation
-    val tripDataWithModeProbs = splittedData.map(data => (data._1, rClient.predict(data._2)))
+    val tripWithModeProbs = splittedData.map(data => (data._1, rClient.predict(data._2)))
+
+
+    // keep only "best" modes
+    val tripWithBestModes = tripWithModeProbs.map { case (trip, modes) => (trip, getBestModes(modes).distinct.toList) }
+    if(debug) {
+
+      for (((trip, bestModes), idx) <- tripWithBestModes.zipWithIndex) {
+
+        // print hte raw GeoJSON points and lines
+        GeoJSONExporter.write(
+          GeoJSONConverter.merge(
+            GeoJSONConverter.toGeoJSONPoints(trip.trace),
+            GeoJSONConverter.toGeoJSONLineString(trip.trace)),
+          s"/tmp/trip${idx}_lines_with_points.json")
+
+        // raw best modes
+        Files.write(
+          Paths.get(s"/tmp/trip${idx}_best_modes.out"),
+          bestModes.mkString("\n").getBytes(Charset.forName("UTF-8")))
+
+        // cleaned best modes
+        val cleanedBestModes = MajorityVoteTripCleaning(100).clean(trip, bestModes)._2
+        Files.write(
+          Paths.get(s"/tmp/trip${idx}_best_modes_cleaned.out"),
+          cleanedBestModes.mkString("\n").getBytes(Charset.forName("UTF-8")))
+
+        // GeoJson with modes highlighted
+        visualizeModes(trip, bestModes, idx)
+        visualizeModes(trip, cleanedBestModes.toList, idx, fileSuffix = "_cleaned")
+      }
+    }
+
+    // clean best modes
+
 
 //    //"20180409134345769","46.09043","11.10995","301.0"
 //    //"20180409161831401","46.09118","11.10932","258.0"
@@ -83,33 +119,21 @@ class Predict(baseDir: String, serverScriptPath: String, clientScriptPath: Strin
 //      .filter(e => e._1.after(testTrip.start.timestamp) && e._1.before(testTrip.end.timestamp))
 //    visualizeModes(testTrip, ModeProbabilities(tripDataWithModeProbs(1)._2.schema, testModeProbs), 999)
 
-    for (((trip, probs), idx) <- tripDataWithModeProbs.zipWithIndex) {
-      Files.write(
-        Paths.get(s"/tmp/trip${idx}_best_modes.out"),
-        getBestModes(probs).mkString("\n").getBytes(Charset.forName("UTF-8")))
-      GeoJSONExporter.write(
-        GeoJSONConverter.merge(
-          GeoJSONConverter.toGeoJSONPoints(trip.trace),
-          GeoJSONConverter.toGeoJSONLineString(trip.trace)),
-        s"/tmp/trip${idx}_lines_with_points.json")
-      visualizeModes(trip, probs, idx)
-    }
 
     rClient.stop()
 
-    tripDataWithModeProbs
+    tripWithModeProbs
 
   }
 
-  private def visualizeModes(trip: Trip, modeProbabilities: ModeProbabilities, idx: Int) = {
+  private def visualizeModes(trip: Trip, bestModes: List[(String, Double, Timestamp)], idx: Int, fileSuffix: String = "") = {
     logger.debug(s"visualizing trip$idx ...")
-    val bestModes = getBestModes(modeProbabilities).distinct.toList
     val f = (e1: (String, Double, Timestamp), e2: (String, Double, Timestamp)) => e1._1 == e2._1
 
     // compress the data,
     // i.e. (mode1, mode1, mode1, mode2, mode2, mode1, mode3) -> (mode1, mode2, mode1, mode3)
     val compressedModes = compress(bestModes, f)
-    Files.write(Paths.get(s"/tmp/trip${idx}_compressed_modes.out"), compressedModes.mkString("\n").getBytes)
+    Files.write(Paths.get(s"/tmp/trip${idx}_compressed_modes$fileSuffix.out"), compressedModes.mkString("\n").getBytes)
 
     // pick some colors for each mode
 //    val colors = GeoJSONConverter.colors(6)
@@ -223,7 +247,7 @@ class Predict(baseDir: String, serverScriptPath: String, clientScriptPath: Strin
     val json = GeoJSONConverter.merge(lineStringsJson :+ pointsJson)
 
     // write to disk
-    GeoJSONExporter.write(json, s"/tmp/trip${idx}_lines_with_points_modes_colored.json")
+    GeoJSONExporter.write(json, s"/tmp/trip${idx}_lines_with_points_modes_colored$fileSuffix.json")
   }
 
   private def propertiesFor(mode: String) =
@@ -293,8 +317,8 @@ object Predict {
       .map{case Array(t, x, y, z) => (x.toDouble, y.toDouble, z.toDouble, asTimestamp(t))}
 
     val res = new Predict(rScriptPath,
-      s"$rScriptPath/prediction_server.R",
-      s"$rScriptPath/prediction_client.R",
+      s"$rScriptPath/prediction_server.r",
+      s"$rScriptPath/prediction_client.r",
       s"$rScriptPath/model.rds")
       .predict(gpsData, accelerometerData)
 
