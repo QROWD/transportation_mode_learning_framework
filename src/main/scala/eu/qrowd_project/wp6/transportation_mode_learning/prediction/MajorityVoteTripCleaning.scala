@@ -11,11 +11,19 @@ import eu.qrowd_project.wp6.transportation_mode_learning.scripts.Trip
   * @param window the number of elements taken into account before and after each element
   * @author Lorenz Buehmann
   */
-class MajorityVoteTripCleaning(window: Int) extends TripCleaning {
+class MajorityVoteTripCleaning(window: Int, iterations: Int = 1) extends TripCleaning {
 
   private val dummyElement = ("NONE", -1.0, Timestamp.valueOf(LocalDateTime.now()))
 
   override def clean(trip: Trip, modes: Seq[(String, Double, Timestamp)]): (Trip, Seq[(String, Double, Timestamp)]) = {
+    var tmp = (trip: Trip, modes: Seq[(String, Double, Timestamp)])
+    for(i <- 1 to iterations) {
+      tmp = singleCleanStep(tmp._1, tmp._2)
+    }
+    tmp
+  }
+
+  def singleCleanStep(trip: Trip, modes: Seq[(String, Double, Timestamp)]): (Trip, Seq[(String, Double, Timestamp)]) = {
     // add dummy elements to begin and end of the list of modes
     val extendedModes = List.fill(window)(dummyElement) ++ modes ++ List.fill(window)(dummyElement)
 
@@ -51,5 +59,5 @@ class MajorityVoteTripCleaning(window: Int) extends TripCleaning {
 }
 
 object MajorityVoteTripCleaning {
-  def apply(window: Int): MajorityVoteTripCleaning = new MajorityVoteTripCleaning(window)
+  def apply(window: Int, iterations: Int = 1): MajorityVoteTripCleaning = new MajorityVoteTripCleaning(window, iterations)
 }
