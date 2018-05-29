@@ -54,7 +54,7 @@ trait SQLiteAccess2ndPilot {
          |  stop_address
          |)
          |VALUES (
-         |  ${trip.trpiID},
+         |  ${trip.tripID},
          |  '${trip.userID}',
          |  '${trip.start.long}, ${trip.start.lat}',
          |  '${trip.start.timestamp.toLocalDateTime.toString}',
