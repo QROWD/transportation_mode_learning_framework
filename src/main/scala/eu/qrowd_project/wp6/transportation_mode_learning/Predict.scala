@@ -80,6 +80,10 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
     // - the timestamp of the sensor value
     val bestModes: Seq[((String, Double, Timestamp), (Timestamp, Double, Double, Double, Double, Double, Double))] = getBestModes(probMatrix)
 
+    // cleaned best modes
+    val cleanedBestModes: Seq[(String, Double, Timestamp)] =
+      MajorityVoteTripCleaning(1000, iterations = 3).clean(trip, bestModes.map(_._1))._2
+
     if(debug) {
       // print hte raw GeoJSON points and lines
       GeoJSONExporter.write(
@@ -93,9 +97,6 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
           Paths.get(s"/tmp/${user}_trip${tripIdx}_best_modes.out"),
           bestModes.mkString("\n").getBytes(Charset.forName("UTF-8")))
 
-        // cleaned best modes
-        val cleanedBestModes: Seq[(String, Double, Timestamp)] =
-          MajorityVoteTripCleaning(100, iterations = 10).clean(trip, bestModes.map(_._1))._2
 
         Files.write(
           Paths.get(s"/tmp/${user}_trip${tripIdx}_best_modes_cleaned.out"),
@@ -108,7 +109,7 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
 
 //    rClient.stop()
 
-    MajorityVoteTripCleaning(100, iterations = 10).clean(trip, bestModes.map(_._1))._2
+    cleanedBestModes
   }
 
   /**
