@@ -27,17 +27,22 @@ import eu.qrowd_project.wp6.transportation_mode_learning.util._
   * 3. determine mode transitions
   *
   * @param baseDir base directory of the R project
-  * @param serverScriptPath path to the R server script
+  * @param scriptPath path to the R script
   * @param modelPath path to the R model
   *
   * @author Lorenz Buehmann
   */
-class Predict(baseDir: String, serverScriptPath: String, clientScriptPath: String, modelPath: String) {
+class Predict(baseDir: String, scriptPath: String, modelPath: String) {
 
+  type Mode = String
   val logger = com.typesafe.scalalogging.Logger("Predict")
 
-//  val rClient = new RClient(baseDir, scriptPath, modelPath)
-  val rClient = new RClientServer(baseDir, serverScriptPath, clientScriptPath, modelPath)
+  lazy val rClient = {
+    if(serverMode)
+      new RClientServer(baseDir, scriptPath, modelPath)
+    else
+      new RClient(baseDir, scriptPath, modelPath)
+  }
 
   val colors = Seq("red", "green", "blue", "yellow", "olive", "purple")
 
@@ -50,11 +55,62 @@ class Predict(baseDir: String, serverScriptPath: String, clientScriptPath: Strin
     "walk" -> "purple"
   )
 
-  val debug: Boolean = true
+  var debug: Boolean = true
 
   private val dateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
   def asTimestamp(timestamp: String): Timestamp =
     Timestamp.valueOf(LocalDateTime.parse(timestamp.substring(0, 14), dateTimeFormatter))
+
+  def predict(trip: Trip, accRecords: Seq[AccelerometerRecord], user: String, tripIdx: Integer): Seq[(String, Double, Timestamp)] = {
+    /**
+      * Probability matrix containing, for each accelerometer value, the
+      * probabilities for each transportation mode, e.g.
+      *
+      *   Bus: 0.10
+      *   Car: 0.23
+      *   Bike: 0.42
+      *   ...
+      */
+    val probMatrix: ModeProbabilities =
+      rClient.predict(accRecords.map(r => (r.x, r.y, r.z, r.timestamp)))
+
+    // reduce the matrix to a vector of triples containing
+    // - the mode that had the highest probability for the given sensor value
+    // - the modes probability
+    // - the timestamp of the sensor value
+    val bestModes: Seq[((String, Double, Timestamp), (Timestamp, Double, Double, Double, Double, Double, Double))] = getBestModes(probMatrix)
+
+    // cleaned best modes
+    val cleanedBestModes: Seq[(String, Double, Timestamp)] =
+      MajorityVoteTripCleaning(2000, iterations = 3).clean(trip, bestModes.map(_._1))._2
+
+    if(debug) {
+      // print hte raw GeoJSON points and lines
+      GeoJSONExporter.write(
+        GeoJSONConverter.merge(
+          GeoJSONConverter.toGeoJSONPoints(trip.trace),
+          GeoJSONConverter.toGeoJSONLineString(trip.trace)),
+        s"/tmp/${user}_trip${tripIdx}_lines_with_points.json")
+
+        // raw best modes
+        Files.write(
+          Paths.get(s"/tmp/${user}_trip${tripIdx}_best_modes.out"),
+          bestModes.mkString("\n").getBytes(Charset.forName("UTF-8")))
+
+
+        Files.write(
+          Paths.get(s"/tmp/${user}_trip${tripIdx}_best_modes_cleaned.out"),
+          cleanedBestModes.mkString("\n").getBytes(Charset.forName("UTF-8")))
+
+        // GeoJson with modes highlighted
+//        visualizeModes(trip, bestModes, tripIdx)
+//        visualizeModes(trip, cleanedBestModes.toList, tripIdx, fileSuffix = "_cleaned")
+      }
+
+//    rClient.stop()
+
+    cleanedBestModes
+  }
 
   /**
     * Should be the main method which returns ... TODO
@@ -65,7 +121,7 @@ class Predict(baseDir: String, serverScriptPath: String, clientScriptPath: Strin
     * @param accelerometerData the accelerometer data
     */
   def predict(gpsTrajectory: Seq[TrackPoint],
-              accelerometerData: Seq[(Double, Double, Double, Timestamp)]) = {
+              accelerometerData: Seq[(Double, Double, Double, Timestamp)]): Seq[(Trip, ModeProbabilities)] = {
 
     // 1. we split the data into trips
     val splittedData = splitTrips(gpsTrajectory, accelerometerData)
@@ -93,13 +149,13 @@ class Predict(baseDir: String, serverScriptPath: String, clientScriptPath: Strin
           bestModes.mkString("\n").getBytes(Charset.forName("UTF-8")))
 
         // cleaned best modes
-        val cleanedBestModes = MajorityVoteTripCleaning(100, iterations = 10).clean(trip, bestModes)._2
+        val cleanedBestModes = MajorityVoteTripCleaning(100, iterations = 10).clean(trip, bestModes.map(_._1))._2
         Files.write(
           Paths.get(s"/tmp/trip${idx}_best_modes_cleaned.out"),
           cleanedBestModes.mkString("\n").getBytes(Charset.forName("UTF-8")))
 
         // GeoJson with modes highlighted
-        visualizeModes(trip, bestModes, idx)
+        visualizeModes(trip, bestModes.map(_._1), idx)
         visualizeModes(trip, cleanedBestModes.toList, idx, fileSuffix = "_cleaned")
       }
     }
@@ -264,7 +320,7 @@ class Predict(baseDir: String, serverScriptPath: String, clientScriptPath: Strin
     case (ls, e) => ls:::List(e)
   }
 
-  private def getBestModes(modeProbabilities: ModeProbabilities): Seq[(String, Double, Timestamp)] = {
+  private def getBestModes(modeProbabilities: ModeProbabilities): Seq[((String, Double, Timestamp), (Timestamp, Double, Double, Double, Double, Double, Double))] = {
     modeProbabilities.probabilities.map(values => {
       val timestamp = values._1
 
@@ -276,7 +332,7 @@ class Predict(baseDir: String, serverScriptPath: String, clientScriptPath: Strin
       // get mode type
       val mode = modeProbabilities.schema(maxIdx)
 
-      (mode, maxValue, timestamp)
+      ((mode, maxValue, timestamp), values)
     })
   }
 
@@ -296,6 +352,13 @@ class Predict(baseDir: String, serverScriptPath: String, clientScriptPath: Strin
     })
 
     splittedData
+  }
+
+  var serverMode = false
+
+  def withServerMode(): Predict = {
+    serverMode = true
+    this
   }
 }
 
@@ -318,8 +381,8 @@ object Predict {
 
     val res = new Predict(rScriptPath,
       s"$rScriptPath/prediction_server.r",
-      s"$rScriptPath/prediction_client.r",
       s"$rScriptPath/model.rds")
+      .withServerMode()
       .predict(gpsData, accelerometerData)
 
     println(res.mkString("\n"))

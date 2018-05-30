@@ -9,8 +9,13 @@ import scala.io.BufferedSource
 /**
   * @author Lorenz Buehmann
   */
-class RClientServer(baseDir: String, serverScriptPath: String, clientScriptPath: String, modelPath: String)
-  extends RClient(baseDir, clientScriptPath, modelPath) {
+class RClientServer(
+                     baseDir: String,
+                     serverScriptPath: String,
+                     modelPath: String,
+                     serverHost: String = "localhost",
+                     serverPort: Int = 6011)
+  extends RClient(baseDir, serverScriptPath, modelPath) {
 
   val logger = com.typesafe.scalalogging.Logger("RClientServer")
 
@@ -18,28 +23,31 @@ class RClientServer(baseDir: String, serverScriptPath: String, clientScriptPath:
 
   start()
 
+
   /**
     * Start the server script.
     */
   def start() = {
-    logger.debug("starting R server...")
+    logger.info(s"starting R server at $serverHost:$serverPort...")
     // call external R script
-    val command = s"Rscript --vanilla $serverScriptPath -m $modelPath"
+    val command = s"Rscript --vanilla $serverScriptPath  -m $modelPath"
     println(command)
     serverProcess = sys.process.Process(command, new java.io.File(baseDir)).run()
     Thread.sleep(5000)
-    logger.debug("successfully started R server.")
+    logger.info("successfully started R server.")
   }
 
   /**
     * Stop the server script.
     */
-  def stop() = {
-    logger.debug("stopping R server...")
+  override def stop() = {
+    logger.info("stopping R server...")
     serverProcess.destroy()
+    logger.info("stopped R server.")
   }
 
   override def predict(accelerometerData: Seq[(Double, Double, Double, Timestamp)]): ModeProbabilities = {
+    logger.info("prediction call...")
     // write data as CSV to disk
     val inputFile = serializeInput(accelerometerData)
 

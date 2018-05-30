@@ -10,6 +10,7 @@ import javax.json.Json
 
 import com.typesafe.config.ConfigFactory
 import eu.qrowd_project.wp6.transportation_mode_learning.Pilot2Stage
+import eu.qrowd_project.wp6.transportation_mode_learning.prediction.{MajorityVoteTripCleaning, TripCleaning}
 import eu.qrowd_project.wp6.transportation_mode_learning.util._
 import scopt.Read
 
@@ -216,6 +217,7 @@ object IlogQuestionaireDataGeneratorPilot2 extends JSONExporter with ParquetLoca
         trajectory = trajectory.filter(!outliers.contains(_))
         logger.info(s"trajectory size (after outlier removal):${trajectory.size}")
 
+        // TODO Patrick: apply trip detection depending on user preferences
         // find trips (start, end, trace)
         var trips: Seq[Trip] = tripDetector.find(trajectory)
         logger.info(s"#trips: ${trips.size}")
@@ -224,6 +226,9 @@ object IlogQuestionaireDataGeneratorPilot2 extends JSONExporter with ParquetLoca
           logger.info("trying fallback algorithm...")
           trips = fallbackTripDetector.find(trajectory)
         }
+
+        // Mode prediction part
+
 
         // debug output if enabled
         if (config.writeDebugOut) {
@@ -295,7 +300,7 @@ object IlogQuestionaireDataGeneratorPilot2 extends JSONExporter with ParquetLoca
 //      val poiEnd: POI = e._7
 
       val trip = Pilot2Stage(
-        userID, startPoint, addressStart, endPoint, addressEnd, trajectory = Seq.empty)
+        userID, "", startPoint, addressStart.label, endPoint, addressEnd.label, trajectory = Seq.empty)
 
       writeTripInfo(trip)
     })

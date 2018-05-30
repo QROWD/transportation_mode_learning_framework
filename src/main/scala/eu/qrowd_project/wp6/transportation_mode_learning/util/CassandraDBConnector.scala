@@ -29,9 +29,17 @@ class CassandraDBConnector(val userIds: Seq[String] = Seq()) {
 
   lazy val config = ConfigFactory.parseFile(new File(getClass.getClassLoader.getResource("cassandra.conf").toURI))
 
-  private lazy val cluster: Cluster = {
-    logger.info("setting up Cassandra cluster...")
+  // FIXME: copied over from LocationEventRecord
+  private val dateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
+  def asTimestamp(timestamp :String): Timestamp =
+    Timestamp.valueOf(LocalDateTime.parse(timestamp.substring(0, 14), dateTimeFormatter))
 
+  lazy val cluster: Cluster = {
+    logger.info("setting up Cassandra cluster...")
+    _initCluster
+  }
+
+  def _initCluster: Cluster = {
     val builder = Cluster.builder
     builder
       .addContactPoints(config.getString("connection.url"))
@@ -49,15 +57,19 @@ class CassandraDBConnector(val userIds: Seq[String] = Seq()) {
     cluster
   }
 
-  private lazy val session: Session = {
+  lazy val session: Session = {
     logger.info("setting up Cassandra session...")
+    _initSession
+  }
+
+  def _initSession: Session = {
     val session = cluster.connect
     _sessionInitialized = true
     session
   }
 
-  private var _clusterInitialized = false
-  private var _sessionInitialized = false
+  var _clusterInitialized = false
+  var _sessionInitialized = false
 
   /**
     *
@@ -72,6 +84,37 @@ class CassandraDBConnector(val userIds: Seq[String] = Seq()) {
 
     runQuery(keyspaces, session, day, accuracyTrhreshold)
   }
+
+  def getAccDataForUserAndDay(userID: String, day: String): Seq[AccelerometerRecord] = {
+    logger.info(s"getting accuracy data for user $userID on $day...")
+    val resultSet: ResultSet = session.execute(
+      s"SELECT * FROM $userID.accelerometerevent WHERE day='$day'")
+
+    time {
+      if (resultSet != null) {
+        resultSet.map(row => {
+          val x = row.getFloat("x").toDouble
+          val y = row.getFloat("y").toDouble
+          val z = row.getFloat("z").toDouble
+          val timestamp = asTimestamp(row.getString("timestamp"))
+
+          AccelerometerRecord(x, y, z, timestamp)
+        }).toSeq
+      } else {
+        Seq.empty[AccelerometerRecord]
+      }
+    }
+  }
+
+  def time[R](block: => R): R = {
+    val t0 = System.currentTimeMillis()
+    val result = block    // call-by-name
+    val t1 = System.currentTimeMillis()
+    logger.info("Elapsed time: " + (t1 - t0) + "ms")
+    result
+  }
+
+
 
   def runQuery(keyspaces: util.List[KeyspaceMetadata], session: Session, day: String, accuracyThreshold: Int): Seq[(String, Seq[LocationEventRecord])] = {
     var data: Seq[(String, Seq[LocationEventRecord])] = Seq()

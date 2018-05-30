@@ -13,13 +13,18 @@ import eu.qrowd_project.wp6.transportation_mode_learning.scripts.Trip
   */
 class MajorityVoteTripCleaning(window: Int, iterations: Int = 1) extends TripCleaning {
 
+  val logger = com.typesafe.scalalogging.Logger("MajorityVoteTripCleaning")
+
   private val dummyElement = ("NONE", -1.0, Timestamp.valueOf(LocalDateTime.now()))
 
   override def clean(trip: Trip, modes: Seq[(String, Double, Timestamp)]): (Trip, Seq[(String, Double, Timestamp)]) = {
+    logger.info("cleaning mode sequence...")
     var tmp = (trip: Trip, modes: Seq[(String, Double, Timestamp)])
     for(i <- 1 to iterations) {
+      logger.info(s"iteration $i")
       tmp = singleCleanStep(tmp._1, tmp._2)
     }
+    logger.info("done.")
     tmp
   }
 
