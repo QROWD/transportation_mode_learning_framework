@@ -9,7 +9,7 @@ import scala.util.{Failure, Success, Try}
 import scalaj.http.Http
 
 trait ReverseGeoCodingTomTom {
-  val logger = com.typesafe.scalalogging.Logger("ReverseGeoCodingTomTom")
+  private val logger = com.typesafe.scalalogging.Logger("ReverseGeoCodingTomTom")
 
   lazy private val tomtomDevConfig = ConfigFactory.parseFile(
     new File(getClass.getClassLoader.getResource("tomtomdev.conf").toURI))

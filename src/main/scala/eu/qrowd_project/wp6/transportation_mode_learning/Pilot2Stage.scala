@@ -34,9 +34,9 @@ import eu.qrowd_project.wp6.transportation_mode_learning.util.{Address, TrackPoi
   *             timestamp) representing the stop point of a stage
   * @param stopAddress Contains the address of the stop point
   */
-case class Pilot2Stage(userID: String, start: TrackPoint, startAddress: Address,
-                       stop: TrackPoint, stopAddress: Address,
-                       segmentConfidence: Double = Double.NaN,
+case class Pilot2Stage(userID: String, mode: String, start: TrackPoint,
+                       startAddress: String, stop: TrackPoint,
+                       stopAddress: String, segmentConfidence: Double = Double.NaN,
                        modeConfidence: Double = Double.NaN,
                        trajectory: Seq[TrackPoint], parentTrip: Option[Int] = None
                       ) {

@@ -12,7 +12,7 @@ class AutoReconnectingCassandraDBConnector extends CassandraDBConnector {
   override lazy val cluster: Cluster = {
     var _cluster: Cluster = null
     // cluster wasn't set up, yet, or closed already
-    if (!_clusterInitialized) {
+    if (!_clusterInitialized || cluster.isClosed) {
       logger.info("setting up Cassandra cluster...")
       var clusterSetUpSuccessfully = false
 

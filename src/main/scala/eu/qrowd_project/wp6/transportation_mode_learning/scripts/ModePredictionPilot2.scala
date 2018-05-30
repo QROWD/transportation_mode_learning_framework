@@ -14,7 +14,7 @@ import eu.qrowd_project.wp6.transportation_mode_learning.{Pilot2Stage, Predict}
 import eu.qrowd_project.wp6.transportation_mode_learning.util._
 import scopt.Read
 
-object ModePredictionPilot2 extends SQLiteAccess2ndPilot with OutlierDetecting with JSONExporter {
+object ModePredictionPilot2 extends SQLiteAccess2ndPilot with OutlierDetecting with JSONExporter with ReverseGeoCodingTomTom {
   val logger = com.typesafe.scalalogging.Logger("Mode detection")
 
   type UserID = String
@@ -151,7 +151,7 @@ object ModePredictionPilot2 extends SQLiteAccess2ndPilot with OutlierDetecting w
     * 2), 3), 4), 5)
     */
   def runModeDetection(userID: UserID, trip: Trip, accelerometerData: Seq[AccelerometerRecord], tripIdx: Int, config: Config): Unit = {
-    logger.info(s"Running mode detection for user $userID on trip " +
+    logger.info(s"Running mode detection for user $userID on trip $tripIdx " +
       s"${trip.start.timestamp.toLocalDateTime.toString} - " +
       s"${trip.end.timestamp.toLocalDateTime.toString}")
 
@@ -168,10 +168,18 @@ object ModePredictionPilot2 extends SQLiteAccess2ndPilot with OutlierDetecting w
     Files.write(Paths.get(s"/tmp/${userID}_${tripIdx}.out"), transitionPointsWithMode.mkString("\n").getBytes(Charset.forName("UTF-8")))
 
     val stages: List[Pilot2Stage] = transitionPointsWithMode.sliding(2).map(pointsWMode => {
-      val startPoint: TrackPoint = pointsWMode(0)._1
-      val stopPoint: TrackPoint = pointsWMode(1)._1
-      val mode: String = pointsWMode(0)._2
-      buildStage(userID, startPoint, stopPoint, mode, trip)
+      if (pointsWMode.size > 1) {
+        val startPoint: TrackPoint = pointsWMode(0)._1
+        val stopPoint: TrackPoint = pointsWMode(1)._1
+        val mode: String = pointsWMode(0)._2
+        buildStage(userID, startPoint, stopPoint, mode, trip)
+      } else {
+        // just one transition point means just one mode was used for the whole trip
+        // or we're in the last stage
+        val startPoint: TrackPoint = pointsWMode(0)._1
+        val mode: String = pointsWMode(0)._2
+        buildStage(userID, startPoint, trip.end, mode, trip)
+      }
     }).toList
 
     stages.foreach(writeTripInfo(_))
@@ -182,9 +190,9 @@ object ModePredictionPilot2 extends SQLiteAccess2ndPilot with OutlierDetecting w
 
     points = Seq(start) ++ points ++ Seq(stop)
 
-    // FIXME: Add Address!!
-    Pilot2Stage(userID, mode, start, Address("START ADDRESS DUMMY", "", ""), stop,
-      Address("STOP ADDRESS DUMMY", "", ""), trajectory = points)
+    val startAddress = getStreet(start.long, start.lat)
+    val stopAddress = getStreet(stop.long, start.lat)
+    Pilot2Stage(userID, mode, start, startAddress, stop, stopAddress, trajectory = points)
   }
 
   private def computeTransitionPoints(trip: Trip, bestModes: List[(String, Double, Timestamp)]) = {

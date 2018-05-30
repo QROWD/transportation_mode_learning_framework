@@ -82,7 +82,7 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
 
     // cleaned best modes
     val cleanedBestModes: Seq[(String, Double, Timestamp)] =
-      MajorityVoteTripCleaning(1000, iterations = 3).clean(trip, bestModes.map(_._1))._2
+      MajorityVoteTripCleaning(2000, iterations = 3).clean(trip, bestModes.map(_._1))._2
 
     if(debug) {
       // print hte raw GeoJSON points and lines
