@@ -1,8 +1,5 @@
 package eu.qrowd_project.wp6.transportation_mode_learning.util
 
-/**
-  * Created by patrick on 5/29/18.
-  */
 trait OutlierDetecting {
   def detectOutliers(trajectory: Seq[TrackPoint]): Seq[TrackPoint] = {
     if (trajectory.size >= 3) {
