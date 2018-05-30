@@ -34,9 +34,12 @@ class CassandraDBConnector(val userIds: Seq[String] = Seq()) {
   def asTimestamp(timestamp :String): Timestamp =
     Timestamp.valueOf(LocalDateTime.parse(timestamp.substring(0, 14), dateTimeFormatter))
 
-  private lazy val cluster: Cluster = {
+  lazy val cluster: Cluster = {
     logger.info("setting up Cassandra cluster...")
+    _initCluster
+  }
 
+  def _initCluster: Cluster = {
     val builder = Cluster.builder
     builder
       .addContactPoints(config.getString("connection.url"))
@@ -54,15 +57,19 @@ class CassandraDBConnector(val userIds: Seq[String] = Seq()) {
     cluster
   }
 
-  private lazy val session: Session = {
+  lazy val session: Session = {
     logger.info("setting up Cassandra session...")
+    _initSession
+  }
+
+  def _initSession: Session = {
     val session = cluster.connect
     _sessionInitialized = true
     session
   }
 
-  private var _clusterInitialized = false
-  private var _sessionInitialized = false
+  var _clusterInitialized = false
+  var _sessionInitialized = false
 
   /**
     *

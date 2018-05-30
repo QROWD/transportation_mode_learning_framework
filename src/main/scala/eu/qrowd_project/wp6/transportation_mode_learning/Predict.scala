@@ -32,13 +32,13 @@ import eu.qrowd_project.wp6.transportation_mode_learning.util._
   *
   * @author Lorenz Buehmann
   */
-class Predict(baseDir: String, serverScriptPath: String, clientScriptPath: String, modelPath: String) {
+class Predict(baseDir: String, serverScriptPath: String, modelPath: String) {
 
   type Mode = String
   val logger = com.typesafe.scalalogging.Logger("Predict")
 
 //  val rClient = new RClient(baseDir, scriptPath, modelPath)
-  val rClient = new RClientServer(baseDir, serverScriptPath, clientScriptPath, modelPath)
+  val rClient = new RClientServer(baseDir, serverScriptPath, modelPath)
 
   val colors = Seq("red", "green", "blue", "yellow", "olive", "purple")
 
@@ -74,7 +74,7 @@ class Predict(baseDir: String, serverScriptPath: String, clientScriptPath: Strin
     // - the mode that had the highest probability for the given sensor value
     // - the modes probability
     // - the timestamp of the sensor value
-    val bestModes: Seq[(Mode, Double, Timestamp)] = getBestModes(probMatrix)
+    val bestModes: Seq[((String, Double, Timestamp), (Timestamp, Double, Double, Double, Double, Double, Double))] = getBestModes(probMatrix)
 
     if(debug) {
       // print hte raw GeoJSON points and lines
@@ -91,7 +91,7 @@ class Predict(baseDir: String, serverScriptPath: String, clientScriptPath: Strin
 
         // cleaned best modes
         val cleanedBestModes: Seq[(String, Double, Timestamp)] =
-          MajorityVoteTripCleaning(100, iterations = 10).clean(trip, bestModes)._2
+          MajorityVoteTripCleaning(100, iterations = 10).clean(trip, bestModes.map(_._1))._2
 
         Files.write(
           Paths.get(s"/tmp/${user}_trip${tripIdx}_best_modes_cleaned.out"),
@@ -102,9 +102,9 @@ class Predict(baseDir: String, serverScriptPath: String, clientScriptPath: Strin
 //        visualizeModes(trip, cleanedBestModes.toList, tripIdx, fileSuffix = "_cleaned")
       }
 
-    rClient.stop()
+//    rClient.stop()
 
-    MajorityVoteTripCleaning(100, iterations = 10).clean(trip, bestModes)._2
+    MajorityVoteTripCleaning(100, iterations = 10).clean(trip, bestModes.map(_._1))._2
   }
 
   /**
@@ -144,13 +144,13 @@ class Predict(baseDir: String, serverScriptPath: String, clientScriptPath: Strin
           bestModes.mkString("\n").getBytes(Charset.forName("UTF-8")))
 
         // cleaned best modes
-        val cleanedBestModes = MajorityVoteTripCleaning(100, iterations = 10).clean(trip, bestModes)._2
+        val cleanedBestModes = MajorityVoteTripCleaning(100, iterations = 10).clean(trip, bestModes.map(_._1))._2
         Files.write(
           Paths.get(s"/tmp/trip${idx}_best_modes_cleaned.out"),
           cleanedBestModes.mkString("\n").getBytes(Charset.forName("UTF-8")))
 
         // GeoJson with modes highlighted
-        visualizeModes(trip, bestModes, idx)
+        visualizeModes(trip, bestModes.map(_._1), idx)
         visualizeModes(trip, cleanedBestModes.toList, idx, fileSuffix = "_cleaned")
       }
     }
@@ -315,7 +315,7 @@ class Predict(baseDir: String, serverScriptPath: String, clientScriptPath: Strin
     case (ls, e) => ls:::List(e)
   }
 
-  private def getBestModes(modeProbabilities: ModeProbabilities): Seq[(String, Double, Timestamp)] = {
+  private def getBestModes(modeProbabilities: ModeProbabilities): Seq[((String, Double, Timestamp), (Timestamp, Double, Double, Double, Double, Double, Double))] = {
     modeProbabilities.probabilities.map(values => {
       val timestamp = values._1
 
@@ -327,7 +327,7 @@ class Predict(baseDir: String, serverScriptPath: String, clientScriptPath: Strin
       // get mode type
       val mode = modeProbabilities.schema(maxIdx)
 
-      (mode, maxValue, timestamp)
+      ((mode, maxValue, timestamp), values)
     })
   }
 
@@ -369,7 +369,6 @@ object Predict {
 
     val res = new Predict(rScriptPath,
       s"$rScriptPath/prediction_server.r",
-      s"$rScriptPath/prediction_client.r",
       s"$rScriptPath/model.rds")
       .predict(gpsData, accelerometerData)
 
