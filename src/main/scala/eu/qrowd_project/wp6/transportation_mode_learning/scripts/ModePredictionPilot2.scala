@@ -1,16 +1,17 @@
 package eu.qrowd_project.wp6.transportation_mode_learning.scripts
 
 import java.io.IOException
+import java.nio.charset.Charset
 import java.nio.file.{Files, Paths}
 import java.sql.Timestamp
-import java.time.LocalDate
+import java.time.{Duration, LocalDate}
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 import com.typesafe.config.ConfigFactory
 import eu.qrowd_project.wp6.transportation_mode_learning.Predict
-import eu.qrowd_project.wp6.transportation_mode_learning.util.{AccelerometerRecord, AutoReconnectingCassandraDBConnector, GeoJSONConverter, JSONExporter, LocationEventRecord, OutlierDetecting, ReverseGeoCoderOSM, SQLiteAccess2ndPilot, TrackPoint}
+import eu.qrowd_project.wp6.transportation_mode_learning.util._
 import scopt.Read
 
 object ModePredictionPilot2 extends SQLiteAccess2ndPilot with OutlierDetecting with JSONExporter {
@@ -25,6 +26,10 @@ object ModePredictionPilot2 extends SQLiteAccess2ndPilot with OutlierDetecting w
   private val formatter = DateTimeFormatter.ofPattern("yyyyMMdd")
 
   private lazy val cassandra = new AutoReconnectingCassandraDBConnector
+
+  private lazy val predicter = new Predict(rScriptPath,
+    s"$rScriptPath/prediction_server.r",
+    s"$rScriptPath/model.rds")
 
   private val tripDetector = new TripDetection()
   private val fallbackTripDetector = new WindowDistanceTripDetection(
@@ -148,11 +153,6 @@ object ModePredictionPilot2 extends SQLiteAccess2ndPilot with OutlierDetecting w
       s"${trip.start.timestamp.toLocalDateTime.toString} - " +
       s"${trip.end.timestamp.toLocalDateTime.toString}")
 
-    val predicter = new Predict(rScriptPath,
-      s"$rScriptPath/prediction_server.r",
-      s"$rScriptPath/prediction_client.r",
-      s"$rScriptPath/model.rds")
-
     predicter.debug = config.writeDebugOut
 
     val modesWProbAndTimeStamp: Seq[(String, Double, Timestamp)] =
@@ -160,8 +160,106 @@ object ModePredictionPilot2 extends SQLiteAccess2ndPilot with OutlierDetecting w
 
     modesWProbAndTimeStamp.foreach(e => assert(e._3.after(trip.start.timestamp) && e._3.before(trip.end.timestamp)))
 
-    // go on here
+    // step 2
+    // compute transition points
+    val transitionPointsWithMode = computeTransitionPoints(trip, modesWProbAndTimeStamp.toList)
+    Files.write(Paths.get(s"/tmp/${userID}_${tripIdx}.out"), transitionPointsWithMode.mkString("\n").getBytes(Charset.forName("UTF-8")))
   }
+
+  private def computeTransitionPoints(trip: Trip, bestModes: List[(String, Double, Timestamp)]) = {
+    val f = (e1: (String, Double, Timestamp), e2: (String, Double, Timestamp)) => e1._1 == e2._1
+    // compress the data
+    // i.e. (mode1, mode1, mode1, mode2, mode2, mode1, mode3) -> (mode1, mode2, mode1, mode3)
+    val compressedModes = compress(bestModes, f)
+
+    // we generate pairs of GPS points, i.e. from (p1, p2, p3, ..., pn) we get ((p1, p2), (p2, p3), ..., (p(n-1), pn)
+    val gpsPairs = trip.trace zip trip.trace.tail
+
+    // compute segments with the used mode
+    val startEndWithMode = gpsPairs.flatMap {
+      case (tp1, tp2) =>
+        val begin = tp1.timestamp
+        val end = tp2.timestamp
+
+        // bearing
+        val bearing = TrackpointUtils.bearing(tp1, tp2)
+
+        // total time between t2 and t1 in ms
+        val timeTotalMs = Duration.between(tp2.timestamp.toLocalDateTime, tp1.timestamp.toLocalDateTime).toMillis
+
+        // total distance
+        val distanceTotalKm = HaversineDistance.compute(tp1, tp2)
+
+        // get all modes in time range between both GPS points
+        val modesBetween = compressedModes.filter(e => e._3.after(begin) && e._3.before(end))
+
+        //        println(s"start point:$tp1")
+        //        println(s"bearing:$bearing")
+        //        println(s"distance(km):$distanceTotalKm")
+        //        println(modesBetween.mkString("\n"))
+
+        // the mode after the last point TODO
+        //        val nextMode = compressedModes.filter(_._3.after(end)).head
+
+
+        if(modesBetween.isEmpty) { // handle no mode change between both points
+          //          println("no mode")
+          // this happens due to compression, just take the last known mode
+          // TODO we might not have seen any mode before because i) it might be the first point at all and ii) the first in the trip split
+          val mode = compressedModes.filter(e => e._3.before(tp1.timestamp)).last
+          Seq((tp1, tp2, mode._1))
+        } else if(modesBetween.size == 1) { // handle single mode change between both points
+          // compute the split point
+          val modeChange = modesBetween.head
+          val timeMs = Duration.between(modeChange._3.toLocalDateTime, begin.toLocalDateTime).toMillis
+          val ratio = timeMs.toDouble / timeTotalMs
+          val distanceKm = ratio * distanceTotalKm
+          val splitPoint = TrackpointUtils.pointFrom(tp1, bearing, distanceKm)
+          val newTP = TrackPoint(splitPoint.lat, splitPoint.long, modeChange._3)
+
+          // get the last mode before the starting point if exists, otherwise use mode change inside
+          val lastMode = compressedModes.filter(e => e._3.before(tp1.timestamp)).lastOption.getOrElse(modeChange)
+
+          Seq((tp1, newTP, lastMode._1), (newTP, tp2, modeChange._1))
+        } else {
+          // for each mode we compute the distance taken based on time ratio
+          // it contains a point and the mode used to this point
+          val intermediatePointsWithMode = (modesBetween zip modesBetween.tail).map {
+            case ((mode1, maxValue1, t1),(mode2, maxValue2, t2)) =>
+              val timeMs = Duration.between(t2.toLocalDateTime, begin.toLocalDateTime).toMillis
+
+              val ratio = timeMs.toDouble / timeTotalMs
+
+              val distanceKm = ratio * distanceTotalKm
+
+              val newPoint = TrackpointUtils.pointFrom(tp1, bearing, distanceKm)
+
+              (TrackPoint(newPoint.lat, newPoint.long, t2), mode1)
+          }
+
+          // generate pairs of points with the mode used in between
+          // TODO actually, the first mode should come from before the GPS point instead of the next mode change, but just for rendering it's ok
+          val first = Seq((tp1, intermediatePointsWithMode.head._1, intermediatePointsWithMode.head._2))
+          val mid =  (intermediatePointsWithMode zip intermediatePointsWithMode.tail).map{
+            case ((p1, mode1), (p2, mode2)) =>
+              (p1, p2, mode2)
+          }
+          val last = Seq((intermediatePointsWithMode.last._1, tp2, intermediatePointsWithMode.last._2))
+
+          first ++ mid ++ last
+        }
+    }
+
+    // keep only the transition points
+    val f2 = (e1: (TrackPoint, TrackPoint, String), e2: (TrackPoint, TrackPoint, String)) => e1._3 == e2._3
+    val startEndWithModeCompressed = compress(startEndWithMode.toList, f2)
+
+    startEndWithModeCompressed.map {
+      case (t1, t2, mode) => (t1, mode)
+    }
+  }
+
+
 
   def run(config: Config): Unit = {
     logger.info(s"processing ILog data of date ${config.date} ...")
@@ -194,6 +292,12 @@ object ModePredictionPilot2 extends SQLiteAccess2ndPilot with OutlierDetecting w
     })
   }
 
+  private def compress[A](l: List[A], fn: (A, A) => Boolean):List[A] = l.foldLeft(List[A]()) {
+    case (List(), e) => List(e)
+    case (ls, e) if fn(ls.last, e) => ls
+    case (ls, e) => ls:::List(e)
+  }
+
   private def filter(accelerometerData: Seq[AccelerometerRecord], start: Timestamp, stop: Timestamp): Seq[AccelerometerRecord] =
     accelerometerData.filter(e => e.timestamp.after(start) && e.timestamp.before(stop))
 
@@ -205,7 +309,7 @@ object ModePredictionPilot2 extends SQLiteAccess2ndPilot with OutlierDetecting w
   implicit val dateRead: Read[LocalDate] =
     reads(x => LocalDate.parse(x, DateTimeFormatter.ofPattern("yyyyMMdd", Locale.ENGLISH)))
 
-  private val parser = new scopt.OptionParser[Config]("IlogQuestionaireDataGenerator") {
+  private val parser = new scopt.OptionParser[Config]("ModeDetection") {
     head("ModeDetection", "0.1.0")
 
     opt[LocalDate]('d', "date")
@@ -238,9 +342,11 @@ object ModePredictionPilot2 extends SQLiteAccess2ndPilot with OutlierDetecting w
           case e: IOException => logger.error("Cannot create output directories.", e)
           case t: Throwable => logger.error("Failed to process the ILog data.", t)
         } finally {
+          println("finished pilot run")
           // stop Cassandra here because when iterating we want to do it only once
           close()
           cassandra.close()
+          predicter.rClient.stop()
         }
       case _ =>
     }
