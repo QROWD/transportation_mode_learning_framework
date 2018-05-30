@@ -10,7 +10,7 @@ import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 import com.typesafe.config.ConfigFactory
-import eu.qrowd_project.wp6.transportation_mode_learning.Predict
+import eu.qrowd_project.wp6.transportation_mode_learning.{Pilot2Stage, Predict}
 import eu.qrowd_project.wp6.transportation_mode_learning.util._
 import scopt.Read
 
@@ -162,8 +162,27 @@ object ModePredictionPilot2 extends SQLiteAccess2ndPilot with OutlierDetecting w
 
     // step 2
     // compute transition points
-    val transitionPointsWithMode = computeTransitionPoints(trip, modesWProbAndTimeStamp.toList)
+    val transitionPointsWithMode: List[(TrackPoint, String)] = computeTransitionPoints(trip, modesWProbAndTimeStamp.toList)
     Files.write(Paths.get(s"/tmp/${userID}_${tripIdx}.out"), transitionPointsWithMode.mkString("\n").getBytes(Charset.forName("UTF-8")))
+
+    val stages: List[Pilot2Stage] = transitionPointsWithMode.sliding(2).map(pointsWMode => {
+      val startPoint: TrackPoint = pointsWMode(0)._1
+      val stopPoint: TrackPoint = pointsWMode(1)._1
+      val mode: String = pointsWMode(0)._2
+      buildStage(userID, startPoint, stopPoint, mode, trip)
+    }).toList
+
+    stages.foreach(writeTripInfo(_))
+  }
+
+  private def buildStage(userID: UserID, start: TrackPoint, stop: TrackPoint, mode: String, overallTrip: Trip): Pilot2Stage = {
+    var points: Seq[TrackPoint] = overallTrip.trace.filter(point => point.timestamp.after(start.timestamp) && point.timestamp.before(stop.timestamp))
+
+    points = Seq(start) ++ points ++ Seq(stop)
+
+    // FIXME: Add Address!!
+    Pilot2Stage(userID, mode, start, Address("START ADDRESS DUMMY", "", ""), stop,
+      Address("STOP ADDRESS DUMMY", "", ""), trajectory = points)
   }
 
   private def computeTransitionPoints(trip: Trip, bestModes: List[(String, Double, Timestamp)]) = {
