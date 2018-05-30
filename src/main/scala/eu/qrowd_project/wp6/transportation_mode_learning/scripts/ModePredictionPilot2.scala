@@ -28,8 +28,10 @@ object ModePredictionPilot2 extends SQLiteAccess2ndPilot with OutlierDetecting w
   private lazy val cassandra = new AutoReconnectingCassandraDBConnector
 
   private lazy val predicter = new Predict(rScriptPath,
-    s"$rScriptPath/prediction_server.r",
+//    s"$rScriptPath/prediction_server.r",
+    s"$rScriptPath/run.r",
     s"$rScriptPath/model.rds")
+//    .withServerMode()
 
   private val tripDetector = new TripDetection()
   private val fallbackTripDetector = new WindowDistanceTripDetection(

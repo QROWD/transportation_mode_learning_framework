@@ -68,4 +68,6 @@ class RClient(baseDir: String, scriptPath: String, modelPath: String) {
     (header, probabilities)
   }
 
+  def stop(): Unit = {}
+
 }

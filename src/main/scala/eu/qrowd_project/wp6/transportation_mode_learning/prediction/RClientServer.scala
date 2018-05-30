@@ -30,7 +30,7 @@ class RClientServer(
   def start() = {
     logger.info(s"starting R server at $serverHost:$serverPort...")
     // call external R script
-    val command = s"Rscript --vanilla $serverScriptPath --host $serverHost --port $serverPort -m $modelPath"
+    val command = s"Rscript --vanilla $serverScriptPath  -m $modelPath"
     println(command)
     serverProcess = sys.process.Process(command, new java.io.File(baseDir)).run()
     Thread.sleep(5000)
@@ -40,7 +40,7 @@ class RClientServer(
   /**
     * Stop the server script.
     */
-  def stop() = {
+  override def stop() = {
     logger.info("stopping R server...")
     serverProcess.destroy()
     logger.info("stopped R server.")
@@ -52,7 +52,7 @@ class RClientServer(
     val inputFile = serializeInput(accelerometerData)
 
     // "talk" to R script
-    val s = new Socket(InetAddress.getByName(serverHost), serverPort)
+    val s = new Socket(InetAddress.getByName("localhost"), 6011)
     lazy val in = new BufferedSource(s.getInputStream).getLines()
     val out = new PrintStream(s.getOutputStream)
     out.println(inputFile.toFile.getAbsolutePath)

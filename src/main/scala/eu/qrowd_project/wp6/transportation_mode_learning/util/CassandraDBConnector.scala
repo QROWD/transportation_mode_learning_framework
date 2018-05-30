@@ -86,11 +86,13 @@ class CassandraDBConnector(val userIds: Seq[String] = Seq()) {
   }
 
   def getAccDataForUserAndDay(userID: String, day: String): Seq[AccelerometerRecord] = {
+    logger.info(s"getting accuracy data for user $userID on $day...")
     val resultSet: ResultSet = session.execute(
       s"SELECT * FROM $userID.accelerometerevent WHERE day='$day'")
 
-    if (resultSet != null) {
-      val res: Seq[AccelerometerRecord] = resultSet.map(row => {
+    time {
+      if (resultSet != null) {
+        resultSet.map(row => {
           val x = row.getFloat("x").toDouble
           val y = row.getFloat("y").toDouble
           val z = row.getFloat("z").toDouble
@@ -98,13 +100,20 @@ class CassandraDBConnector(val userIds: Seq[String] = Seq()) {
 
           AccelerometerRecord(x, y, z, timestamp)
         }).toSeq
-
-      res
-    } else {
-      Seq.empty[AccelerometerRecord]
+      } else {
+        Seq.empty[AccelerometerRecord]
+      }
     }
-
   }
+
+  def time[R](block: => R): R = {
+    val t0 = System.currentTimeMillis()
+    val result = block    // call-by-name
+    val t1 = System.currentTimeMillis()
+    logger.info("Elapsed time: " + (t1 - t0) + "ms")
+    result
+  }
+
 
 
   def runQuery(keyspaces: util.List[KeyspaceMetadata], session: Session, day: String, accuracyThreshold: Int): Seq[(String, Seq[LocationEventRecord])] = {
