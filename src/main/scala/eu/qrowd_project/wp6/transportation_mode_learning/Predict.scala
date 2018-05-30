@@ -27,18 +27,22 @@ import eu.qrowd_project.wp6.transportation_mode_learning.util._
   * 3. determine mode transitions
   *
   * @param baseDir base directory of the R project
-  * @param serverScriptPath path to the R server script
+  * @param scriptPath path to the R script
   * @param modelPath path to the R model
   *
   * @author Lorenz Buehmann
   */
-class Predict(baseDir: String, serverScriptPath: String, modelPath: String) {
+class Predict(baseDir: String, scriptPath: String, modelPath: String) {
 
   type Mode = String
   val logger = com.typesafe.scalalogging.Logger("Predict")
 
-//  val rClient = new RClient(baseDir, scriptPath, modelPath)
-  val rClient = new RClientServer(baseDir, serverScriptPath, modelPath)
+  lazy val rClient = {
+    if(serverMode)
+      new RClientServer(baseDir, scriptPath, modelPath)
+    else
+      new RClient(baseDir, scriptPath, modelPath)
+  }
 
   val colors = Seq("red", "green", "blue", "yellow", "olive", "purple")
 
@@ -348,6 +352,13 @@ class Predict(baseDir: String, serverScriptPath: String, modelPath: String) {
 
     splittedData
   }
+
+  var serverMode = false
+
+  def withServerMode(): Predict = {
+    serverMode = true
+    this
+  }
 }
 
 object Predict {
@@ -370,6 +381,7 @@ object Predict {
     val res = new Predict(rScriptPath,
       s"$rScriptPath/prediction_server.r",
       s"$rScriptPath/model.rds")
+      .withServerMode()
       .predict(gpsData, accelerometerData)
 
     println(res.mkString("\n"))
