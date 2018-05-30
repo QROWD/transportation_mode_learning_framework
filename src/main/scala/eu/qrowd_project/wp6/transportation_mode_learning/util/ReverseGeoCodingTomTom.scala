@@ -48,7 +48,7 @@ trait ReverseGeoCodingTomTom {
         val addresses = j.getJsonArray("addresses")
         val firstAddress = addresses.getJsonObject(0)
         try {
-          firstAddress.getJsonObject("address").getString("streetNameAndNumber")
+          firstAddress.getJsonObject("address").getString("streetName")
         } catch {
           case _: NullPointerException => ""
         }
