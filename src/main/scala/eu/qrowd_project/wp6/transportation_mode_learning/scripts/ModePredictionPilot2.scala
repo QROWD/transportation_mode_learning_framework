@@ -165,7 +165,7 @@ object ModePredictionPilot2 extends SQLiteAccess2ndPilot with OutlierDetecting w
     // step 2
     // compute transition points
     val transitionPointsWithMode: List[(TrackPoint, String)] = computeTransitionPoints(trip, modesWProbAndTimeStamp.toList)
-    Files.write(Paths.get(s"/tmp/${userID}_${tripIdx}.out"), transitionPointsWithMode.mkString("\n").getBytes(Charset.forName("UTF-8")))
+    Files.write(Paths.get(s"/tmp/${userID}_transition_points_trip${tripIdx}.out"), transitionPointsWithMode.mkString("\n").getBytes(Charset.forName("UTF-8")))
 
     val stages: List[Pilot2Stage] = transitionPointsWithMode.sliding(2).map(pointsWMode => {
       if (pointsWMode.size > 1) {

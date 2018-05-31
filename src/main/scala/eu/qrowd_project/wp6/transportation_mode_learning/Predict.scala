@@ -329,11 +329,14 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
     modeProbabilities.probabilities.map(values => {
       val timestamp = values._1
 
-      val valuesList = values._2.productIterator.map(_.asInstanceOf[Double])
+      val valuesList = values._2.productIterator.map(_.asInstanceOf[Double]).toList
+
       // highest value
       val maxValue = valuesList.max
+
       // index of highest value
       val maxIdx = valuesList.indexOf(maxValue)
+
       // get mode type
       val mode = modeProbabilities.schema(maxIdx)
 
