@@ -8,18 +8,31 @@ import eu.qrowd_project.wp6.transportation_mode_learning.scripts.Trip
 /**
   * Majority voting based cleaning of a sequence of transportation modes.
   *
+  * step = 1 -> single element taken into account and replaced
+  * step > 1 -> multiple elements taken into account and replaced
+  * step = window -> the whole window taken into account and replaced, no overlap
+  *
   * @param window the number of elements taken into account before and after each element
+  * @param iterations number of iterations the whole sequence will be cleaned
+  * @param step the step size when sliding over the sequence
+  *
   * @author Lorenz Buehmann
   */
-class MajorityVoteTripCleaning(window: Int, iterations: Int = 1) extends TripCleaning {
+class MajorityVoteTripCleaning(window: Int, iterations: Int = 1, step: Int = 1)
+  extends TripCleaning {
 
   val logger = com.typesafe.scalalogging.Logger("MajorityVoteTripCleaning")
 
-  private val dummyElement = ("NONE", -1.0, Timestamp.valueOf(LocalDateTime.now()))
+  val dummyElement = ("NONE", -1.0, Timestamp.valueOf(LocalDateTime.now()))
 
-  override def clean(trip: Trip, modes: Seq[(String, Double, Timestamp)]): (Trip, Seq[(String, Double, Timestamp)]) = {
+  override def clean(trip: Trip,
+                     modes: Seq[(String, Double, Timestamp)],
+                     modeProbabilities: ModeProbabilities): (Trip, Seq[(String, Double, Timestamp)]) = {
     logger.info("cleaning mode sequence...")
-    var tmp = (trip: Trip, modes: Seq[(String, Double, Timestamp)])
+    // padding on the list ensures proper sliding window
+    val paddedModes = padding(modes, dummyElement)
+
+    var tmp = (trip, paddedModes)
     for(i <- 1 to iterations) {
       logger.info(s"iteration $i")
       tmp = singleCleanStep(tmp._1, tmp._2)
@@ -43,6 +56,10 @@ class MajorityVoteTripCleaning(window: Int, iterations: Int = 1) extends TripCle
     (trip, cleanedModes)
   }
 
+  /**
+    * Do padding left and right side of the sequence with the given element.
+    */
+  private def padding[A](seq: Seq[A], elt: A): Seq[A] = List.fill(window)(elt) ++ seq ++ List.fill(window)(elt)
 
   private def majority(values: Seq[(String, Double, Timestamp)]) = {
     val bestMode =
