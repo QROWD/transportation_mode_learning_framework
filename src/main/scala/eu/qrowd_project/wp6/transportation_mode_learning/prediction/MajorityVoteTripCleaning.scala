@@ -25,6 +25,8 @@ class MajorityVoteTripCleaning(window: Int, iterations: Int = 1, step: Int = 1)
 
   val dummyElement = ("NONE", -1.0, Timestamp.valueOf(LocalDateTime.now()))
 
+  val dropStillMode = true
+
   override def clean(trip: Trip,
                      modes: Seq[(String, Double, Timestamp)],
                      modeProbabilities: ModeProbabilities): (Trip, Seq[(String, Double, Timestamp)]) = {
@@ -63,19 +65,31 @@ class MajorityVoteTripCleaning(window: Int, iterations: Int = 1, step: Int = 1)
   def padding[A](seq: Seq[A], elt: A): Seq[A] = List.fill(window)(elt) ++ seq ++ List.fill(window)(elt)
 
   private def majority(values: Seq[(String, Double, Timestamp)]) = {
-    val bestMode =
-      values
-        .filter(v => v != dummyElement) // omit dummy elements
-        .groupBy(_._1)
-        .mapValues(_.size)
-        .maxBy(_._2)._1
+
+    val mode2Frequency = values
+      .filter(v => v != dummyElement) // omit dummy elements
+      .groupBy(_._1)
+      .mapValues(_.size)
+
+    val bestMode = if (dropStillMode) {
+      // keep "still" if there is no other mode in the window
+      if(mode2Frequency.size == 1 && mode2Frequency.contains("still")) {
+        "still"
+      } else { // drop "still"
+        mode2Frequency
+          .filter(_._1 != "still")
+          .maxBy(_._2)._1
+      }
+    } else {
+      mode2Frequency.maxBy(_._2)._1
+    }
 
     // take the middle element
     val anchorElt = values(window)
 
-    val probability = if(bestMode == anchorElt._1) anchorElt._2 else 0.000001
+    val probability = if (bestMode == anchorElt._1) anchorElt._2 else 0.000001
 
-//    println(values + "=>" + (bestMode, probability, anchorElt._3))
+    //    println(values + "=>" + (bestMode, probability, anchorElt._3))
     (bestMode, probability, anchorElt._3)
   }
 
