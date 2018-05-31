@@ -165,7 +165,7 @@ object ModePredictionPilot2 extends SQLiteAccess2ndPilot with OutlierDetecting w
     // step 2
     // compute transition points
     val transitionPointsWithMode: List[(TrackPoint, String)] = computeTransitionPoints(trip, modesWProbAndTimeStamp.toList)
-    Files.write(Paths.get(s"/tmp/${userID}_${tripIdx}.out"), transitionPointsWithMode.mkString("\n").getBytes(Charset.forName("UTF-8")))
+    Files.write(Paths.get(s"/tmp/${userID}_transition_points_trip${tripIdx}.out"), transitionPointsWithMode.mkString("\n").getBytes(Charset.forName("UTF-8")))
 
     val stages: List[Pilot2Stage] = transitionPointsWithMode.sliding(2).map(pointsWMode => {
       if (pointsWMode.size > 1) {
@@ -293,10 +293,18 @@ object ModePredictionPilot2 extends SQLiteAccess2ndPilot with OutlierDetecting w
   def run(config: Config): Unit = {
     logger.info(s"processing ILog data of date ${config.date} ...")
 
+    // filter by user ID if given for debugging
+    if(config.userID != null) {
+      cassandra.userIds = Seq(config.userID)
+//        data = data.filter(_._1 == config.userID)
+    }
+
+
     // get the data for the given day, i.e. (user, GPS values)
-    val data = cassandra.readData(
+    var data = cassandra.readData(
       config.date.format(formatter),
       appConfig.getInt("stop_detection.gps_accuracy"))
+
 
     // run the trip detection, i.e. find start and stop points
     val trips: Map[UserID, Seq[(UserID, Trip)]] = extractTrips(data, config).groupBy(_._1)
@@ -332,7 +340,8 @@ object ModePredictionPilot2 extends SQLiteAccess2ndPilot with OutlierDetecting w
 
   private val today = LocalDate.now()
   case class Config(date: LocalDate = today,
-                    writeDebugOut: Boolean = false)
+                    writeDebugOut: Boolean = false,
+                    userID: String = null)
 
   import scopt.Read.reads
   implicit val dateRead: Read[LocalDate] =
@@ -347,6 +356,12 @@ object ModePredictionPilot2 extends SQLiteAccess2ndPilot with OutlierDetecting w
       .action((x, c) =>
         c.copy(date = x)).text("Date to be processed (yyyyMMdd), e.g. 20180330 . " +
       "If no date is provided, we'll use the current date.")
+
+    opt[String]('u', "user")
+      //      .required()
+      .valueName("userID")
+      .action((x, c) =>
+        c.copy(userID = x)).text("User ID used for debugging only a single user.")
 
     opt[Unit]("debug")
       .optional()

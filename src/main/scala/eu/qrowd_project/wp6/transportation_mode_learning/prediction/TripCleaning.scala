@@ -11,6 +11,8 @@ import eu.qrowd_project.wp6.transportation_mode_learning.scripts.Trip
   */
 trait TripCleaning {
 
-  def clean(trip: Trip, modes: Seq[(String, Double, Timestamp)]): (Trip, Seq[(String, Double, Timestamp)])
+  def clean(trip: Trip,
+            modes: Seq[(String, Double, Timestamp)],
+            probabilities: ModeProbabilities): (Trip, Seq[(String, Double, Timestamp)])
 
 }

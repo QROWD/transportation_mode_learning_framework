@@ -23,7 +23,7 @@ import scala.collection.JavaConversions._
   *
   * @author Lorenz Buehmann
   */
-class CassandraDBConnector(val userIds: Seq[String] = Seq()) {
+class CassandraDBConnector(var userIds: Seq[String] = Seq()) {
 
   val logger = com.typesafe.scalalogging.Logger("Cassandra DB connector")
 
@@ -78,11 +78,12 @@ class CassandraDBConnector(val userIds: Seq[String] = Seq()) {
     * @param day the date you want to query for. format: `yyyymmdd`
     * @return users with their location event records
     */
-  def readData(day: String, accuracyTrhreshold: Int = Int.MaxValue): Seq[(String, Seq[LocationEventRecord])] = {
+  def readData(day: String,
+               accuracyThreshold: Int = Int.MaxValue,
+               userID: Option[String] = None): Seq[(String, Seq[LocationEventRecord])] = {
     // get all the keyspaces
     val keyspaces = cluster.getMetadata.getKeyspaces
-
-    runQuery(keyspaces, session, day, accuracyTrhreshold)
+    runQuery(keyspaces, session, day, accuracyThreshold)
   }
 
   def getAccDataForUserAndDay(userID: String, day: String): Seq[AccelerometerRecord] = {

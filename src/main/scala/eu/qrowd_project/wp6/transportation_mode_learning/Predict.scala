@@ -61,7 +61,10 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
   def asTimestamp(timestamp: String): Timestamp =
     Timestamp.valueOf(LocalDateTime.parse(timestamp.substring(0, 14), dateTimeFormatter))
 
-  def predict(trip: Trip, accRecords: Seq[AccelerometerRecord], user: String, tripIdx: Integer): Seq[(String, Double, Timestamp)] = {
+  def predict(trip: Trip,
+              accRecords: Seq[AccelerometerRecord],
+              user: String,
+              tripIdx: Integer): Seq[(String, Double, Timestamp)] = {
     /**
       * Probability matrix containing, for each accelerometer value, the
       * probabilities for each transportation mode, e.g.
@@ -78,11 +81,12 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
     // - the mode that had the highest probability for the given sensor value
     // - the modes probability
     // - the timestamp of the sensor value
-    val bestModes: Seq[((String, Double, Timestamp), (Timestamp, Double, Double, Double, Double, Double, Double))] = getBestModes(probMatrix)
+    val bestModes: Seq[((String, Double, Timestamp), (Timestamp, (Double, Double, Double, Double, Double, Double)))] =
+    getBestModes(probMatrix)
 
     // cleaned best modes
     val cleanedBestModes: Seq[(String, Double, Timestamp)] =
-      MajorityVoteTripCleaning(2000, iterations = 3).clean(trip, bestModes.map(_._1))._2
+      MajorityVoteTripCleaning(2000, iterations = 3).clean(trip, bestModes.map(_._1), probMatrix)._2
 
     if(debug) {
       // print hte raw GeoJSON points and lines
@@ -131,10 +135,10 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
 
 
     // keep only "best" modes
-    val tripWithBestModes = tripWithModeProbs.map { case (trip, modes) => (trip, getBestModes(modes).distinct.toList) }
+    val tripWithBestModes = tripWithModeProbs.map { case (trip, modes) => (trip, getBestModes(modes).distinct.toList, modes) }
     if(debug) {
 
-      for (((trip, bestModes), idx) <- tripWithBestModes.zipWithIndex) {
+      for (((trip, bestModes, modes), idx) <- tripWithBestModes.zipWithIndex) {
 
         // print hte raw GeoJSON points and lines
         GeoJSONExporter.write(
@@ -149,7 +153,7 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
           bestModes.mkString("\n").getBytes(Charset.forName("UTF-8")))
 
         // cleaned best modes
-        val cleanedBestModes = MajorityVoteTripCleaning(100, iterations = 10).clean(trip, bestModes.map(_._1))._2
+        val cleanedBestModes = MajorityVoteTripCleaning(100, iterations = 10).clean(trip, bestModes.map(_._1), modes)._2
         Files.write(
           Paths.get(s"/tmp/trip${idx}_best_modes_cleaned.out"),
           cleanedBestModes.mkString("\n").getBytes(Charset.forName("UTF-8")))
@@ -320,15 +324,19 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
     case (ls, e) => ls:::List(e)
   }
 
-  private def getBestModes(modeProbabilities: ModeProbabilities): Seq[((String, Double, Timestamp), (Timestamp, Double, Double, Double, Double, Double, Double))] = {
+  private def getBestModes(modeProbabilities: ModeProbabilities)
+  : Seq[((String, Double, Timestamp), (Timestamp, (Double, Double, Double, Double, Double, Double)))] = {
     modeProbabilities.probabilities.map(values => {
       val timestamp = values._1
 
-      val valuesList = values.productIterator.toSeq.drop(1).map(_.asInstanceOf[Double])
+      val valuesList = values._2.productIterator.map(_.asInstanceOf[Double]).toList
+
       // highest value
       val maxValue = valuesList.max
+
       // index of highest value
       val maxIdx = valuesList.indexOf(maxValue)
+
       // get mode type
       val mode = modeProbabilities.schema(maxIdx)
 
