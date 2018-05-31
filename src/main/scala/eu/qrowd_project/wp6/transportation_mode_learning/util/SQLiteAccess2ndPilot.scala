@@ -47,7 +47,6 @@ trait SQLiteAccess2ndPilot {
     val queryStr =
       s"""
          |INSERT INTO trip(
-         |  trip_id,
          |  citizen_id,
          |  start_coordinate,
          |  start_timestamp,
@@ -59,7 +58,6 @@ trait SQLiteAccess2ndPilot {
          |  path
          |)
          |VALUES (
-         |  ${trip.tripID},
          |  '${trip.userID}',
          |  '[${trip.start.lat},${trip.start.long}]',
          |  '${trip.start.timestamp.toLocalDateTime.format(dateTimeFormatter)}',
