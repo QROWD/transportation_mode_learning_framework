@@ -81,7 +81,8 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
     // - the mode that had the highest probability for the given sensor value
     // - the modes probability
     // - the timestamp of the sensor value
-    val bestModes: Seq[((String, Double, Timestamp), (Timestamp, Double, Double, Double, Double, Double, Double))] = getBestModes(probMatrix)
+    val bestModes: Seq[((String, Double, Timestamp), (Timestamp, (Double, Double, Double, Double, Double, Double)))] =
+    getBestModes(probMatrix)
 
     // cleaned best modes
     val cleanedBestModes: Seq[(String, Double, Timestamp)] =
@@ -323,11 +324,12 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
     case (ls, e) => ls:::List(e)
   }
 
-  private def getBestModes(modeProbabilities: ModeProbabilities): Seq[((String, Double, Timestamp), (Timestamp, Double, Double, Double, Double, Double, Double))] = {
+  private def getBestModes(modeProbabilities: ModeProbabilities)
+  : Seq[((String, Double, Timestamp), (Timestamp, (Double, Double, Double, Double, Double, Double)))] = {
     modeProbabilities.probabilities.map(values => {
       val timestamp = values._1
 
-      val valuesList = values.productIterator.toSeq.drop(1).map(_.asInstanceOf[Double])
+      val valuesList = values._2.productIterator.map(_.asInstanceOf[Double])
       // highest value
       val maxValue = valuesList.max
       // index of highest value

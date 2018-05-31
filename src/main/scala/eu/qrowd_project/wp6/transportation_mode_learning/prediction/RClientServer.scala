@@ -2,7 +2,6 @@ package eu.qrowd_project.wp6.transportation_mode_learning.prediction
 import java.io.PrintStream
 import java.net.{InetAddress, Socket}
 import java.sql.Timestamp
-import java.util.concurrent.TimeUnit
 
 import scala.io.BufferedSource
 
@@ -67,7 +66,7 @@ class RClientServer(
 
     // keep track of timestamp from input
     val probsWithTime = (accelerometerData zip probabilities).map(pair => {
-      (pair._1._4, pair._2._1, pair._2._2, pair._2._3,pair._2._4, pair._2._5, pair._2._6)
+      (pair._1._4, (pair._2._1, pair._2._2, pair._2._3,pair._2._4, pair._2._5, pair._2._6))
     })
 
     val predictedProbabilities = ModeProbabilities(header, probsWithTime)

@@ -29,21 +29,22 @@ class MajorityVoteTripCleaning(window: Int, iterations: Int = 1, step: Int = 1)
                      modes: Seq[(String, Double, Timestamp)],
                      modeProbabilities: ModeProbabilities): (Trip, Seq[(String, Double, Timestamp)]) = {
     logger.info("cleaning mode sequence...")
-    // padding on the list ensures proper sliding window
-    val paddedModes = padding(modes, dummyElement)
 
-    var tmp = (trip, paddedModes)
+    var tmp = (trip, modes)
+
     for(i <- 1 to iterations) {
       logger.info(s"iteration $i")
-      tmp = singleCleanStep(tmp._1, tmp._2)
+      tmp = singleCleanStep(tmp._1, tmp._2, modeProbabilities)
     }
     logger.info("done.")
     tmp
   }
 
-  def singleCleanStep(trip: Trip, modes: Seq[(String, Double, Timestamp)]): (Trip, Seq[(String, Double, Timestamp)]) = {
+  def singleCleanStep(trip: Trip,
+                      modes: Seq[(String, Double, Timestamp)],
+                      modeProbabilities: ModeProbabilities): (Trip, Seq[(String, Double, Timestamp)]) = {
     // add dummy elements to begin and end of the list of modes
-    val extendedModes = List.fill(window)(dummyElement) ++ modes ++ List.fill(window)(dummyElement)
+    val extendedModes = padding(modes, dummyElement)
 
     // sliding window and keep majority
     val cleanedModes = extendedModes
@@ -59,7 +60,7 @@ class MajorityVoteTripCleaning(window: Int, iterations: Int = 1, step: Int = 1)
   /**
     * Do padding left and right side of the sequence with the given element.
     */
-  private def padding[A](seq: Seq[A], elt: A): Seq[A] = List.fill(window)(elt) ++ seq ++ List.fill(window)(elt)
+  def padding[A](seq: Seq[A], elt: A): Seq[A] = List.fill(window)(elt) ++ seq ++ List.fill(window)(elt)
 
   private def majority(values: Seq[(String, Double, Timestamp)]) = {
     val bestMode =

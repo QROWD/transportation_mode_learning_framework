@@ -40,7 +40,7 @@ class RClient(baseDir: String, scriptPath: String, modelPath: String) {
 
     // keep track of timestamp from input
     val probsWithTime = (accelerometerData zip probabilities).map(pair => {
-      (pair._1._4, pair._2._1, pair._2._2, pair._2._3,pair._2._4, pair._2._5, pair._2._6)
+      (pair._1._4, (pair._2._1, pair._2._2, pair._2._3,pair._2._4, pair._2._5, pair._2._6))
     })
 
     val predictedProbabilities = ModeProbabilities(header, probsWithTime)
