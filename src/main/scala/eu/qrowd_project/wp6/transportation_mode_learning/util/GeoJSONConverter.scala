@@ -76,31 +76,33 @@ object GeoJSONConverter {
 
 
   def toGeoJSONLineString(entries: Seq[TrackPoint], properties: Map[String, String] = Map()): JsonObject = {
-    val concisePoints = entries.head :: entries.sliding(2).collect { case Seq(a,b) if a != b => b }.toList
+    if (entries.nonEmpty) {
+      val concisePoints = entries.head :: entries.sliding(2).collect { case Seq(a, b) if a != b => b }.toList
 
-    val coordinates = Json.createArrayBuilder()
-    concisePoints.zipWithIndex.foreach{
-      case(p, i) => coordinates.add(i, Json.createArrayBuilder(Seq(p.long, p.lat).asJava))
+      val coordinates = Json.createArrayBuilder()
+      concisePoints.zipWithIndex.foreach {
+        case (p, i) => coordinates.add(i, Json.createArrayBuilder(Seq(p.long, p.lat).asJava))
+      }
+
+      val props = Json.createObjectBuilder()
+        .add("timestamp-start", entries.head.timestamp.toString)
+        .add("timestamp-end", entries.last.timestamp.toString)
+      properties.foreach(e => props.add(e._1, e._2))
+
+      val feature = Json.createObjectBuilder()
+        .add("type", "Feature")
+        .add("geometry", Json.createObjectBuilder()
+          .add("type", "LineString")
+          .add("coordinates", coordinates)
+        )
+        .add("properties", props)
+
+
+      Json.createObjectBuilder()
+        .add("type", "FeatureCollection")
+        .add("features", Json.createArrayBuilder().add(feature))
+        .build()
     }
-
-    val props = Json.createObjectBuilder()
-      .add("timestamp-start", entries.head.timestamp.toString)
-      .add("timestamp-end", entries.last.timestamp.toString)
-    properties.foreach(e => props.add(e._1, e._2))
-
-    val feature = Json.createObjectBuilder()
-      .add("type", "Feature")
-      .add("geometry", Json.createObjectBuilder()
-        .add("type", "LineString")
-        .add("coordinates", coordinates)
-      )
-      .add("properties", props)
-
-
-    Json.createObjectBuilder()
-      .add("type", "FeatureCollection")
-      .add("features", Json.createArrayBuilder().add(feature))
-      .build()
   }
 
   private def addStyleData(json: JsonObject, title: String, color: String) = {
