@@ -200,7 +200,9 @@ object IlogQuestionaireDataGeneratorPilot2 extends JSONExporter with ParquetLoca
     val outputPath = config.out.getAbsolutePath
 
     // get the data for the given day, i.e. (user, entries)
-    val data = cassandra.readData(date.format(formatter), appConfig.getInt("stop_detection.gps_accuracy"))
+    val data = cassandra.readData(
+      date.format(formatter),
+      appConfig.getInt("stop_detection.gps_accuracy"))
 
     // detect trips per each user
     val result = data.flatMap {

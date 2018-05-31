@@ -7,7 +7,8 @@ import com.datastax.driver.core.{Cluster, Session, SocketOptions}
   * Cassandra DB even if we got timeouts or other problems which require
   * reconnecting.
   */
-class AutoReconnectingCassandraDBConnector extends CassandraDBConnector {
+class AutoReconnectingCassandraDBConnector
+  extends CassandraDBConnector {
 
   override lazy val cluster: Cluster = {
     var _cluster: Cluster = null
@@ -15,7 +16,6 @@ class AutoReconnectingCassandraDBConnector extends CassandraDBConnector {
     if (!_clusterInitialized || cluster.isClosed) {
       logger.info("setting up Cassandra cluster...")
       var clusterSetUpSuccessfully = false
-
 
       while (!clusterSetUpSuccessfully) {
         try {
@@ -52,13 +52,17 @@ class AutoReconnectingCassandraDBConnector extends CassandraDBConnector {
     _session
   }
 
-  override def readData(day: String, accuracyThreshold: Int = Int.MaxValue): Seq[(String, Seq[LocationEventRecord])] = {
+  override def readData(day: String,
+                        accuracyThreshold: Int = Int.MaxValue,
+                        userID: Option[String] = None): Seq[(String, Seq[LocationEventRecord])] = {
     var dataReadSuccessfully = false
     var res = Seq.empty[(String, Seq[LocationEventRecord])]
 
     while (!dataReadSuccessfully) {
       try {
-        res = runQuery(cluster.getMetadata.getKeyspaces, session, day, accuracyThreshold)
+        val keyspaces = cluster.getMetadata.getKeyspaces
+        res = runQuery(keyspaces, session, day, accuracyThreshold)
+//        res = readData(day, accuracyThreshold, userID)
         dataReadSuccessfully = true
       } catch {
         case t: Throwable =>
