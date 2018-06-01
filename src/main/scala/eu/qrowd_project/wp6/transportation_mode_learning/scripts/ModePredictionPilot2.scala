@@ -77,6 +77,8 @@ object ModePredictionPilot2 extends SQLiteAccess2ndPilot with OutlierDetecting w
         // find trips (start, end, trace)
         var trips: Seq[Trip] = tripDetector.find(trajectory)
         logger.info(s"#trips: ${trips.size}")
+        logger.info(s"trip details: ${trips.zipWithIndex.map {
+          case (trip, idx) => s"trip$idx ${trip.start} - ${trip.end} : ${trip.trace.size} points"}.mkString("\n")}")
 
         if (trips.isEmpty) {
           logger.info("trying fallback algorithm...")
@@ -150,10 +152,13 @@ object ModePredictionPilot2 extends SQLiteAccess2ndPilot with OutlierDetecting w
     * Sub-tasks still to implement:
     * 2), 3), 4), 5)
     */
-  def runModeDetection(userID: UserID, trip: Trip, accelerometerData: Seq[AccelerometerRecord], tripIdx: Int, config: Config): Unit = {
+  def runModeDetection(userID: UserID,
+                       trip: Trip,
+                       accelerometerData: Seq[AccelerometerRecord],
+                       tripIdx: Int,
+                       config: Config): Unit = {
     logger.info(s"Running mode detection for user $userID on trip $tripIdx " +
-      s"${trip.start.timestamp.toLocalDateTime.toString} - " +
-      s"${trip.end.timestamp.toLocalDateTime.toString}")
+      s"${trip.start.timestamp.toLocalDateTime.toString} - ${trip.end.timestamp.toLocalDateTime.toString}")
 
     predicter.debug = config.writeDebugOut
 
@@ -165,7 +170,7 @@ object ModePredictionPilot2 extends SQLiteAccess2ndPilot with OutlierDetecting w
     // step 2
     // compute transition points
     val transitionPointsWithMode: List[(TrackPoint, String)] = computeTransitionPoints(trip, modesWProbAndTimeStamp.toList)
-    Files.write(Paths.get(s"/tmp/${userID}_transition_points_trip${tripIdx}.out"), transitionPointsWithMode.mkString("\n").getBytes(Charset.forName("UTF-8")))
+    Files.write(Paths.get(s"/tmp/${userID}_transition_points_trip$tripIdx.out"), transitionPointsWithMode.mkString("\n").getBytes(Charset.forName("UTF-8")))
 
     val stages: List[Pilot2Stage] = transitionPointsWithMode.sliding(2).map(pointsWMode => {
       if (pointsWMode.size > 1) {
@@ -201,8 +206,11 @@ object ModePredictionPilot2 extends SQLiteAccess2ndPilot with OutlierDetecting w
     // i.e. (mode1, mode1, mode1, mode2, mode2, mode1, mode3) -> (mode1, mode2, mode1, mode3)
     val compressedModes = compress(bestModes, f)
 
+    // we might have no points between start and end, thus, we wrap it here
+    val trajectory = Seq(trip.start) ++ trip.trace ++ Seq(trip.end)
+
     // we generate pairs of GPS points, i.e. from (p1, p2, p3, ..., pn) we get ((p1, p2), (p2, p3), ..., (p(n-1), pn)
-    val gpsPairs = trip.trace zip trip.trace.tail
+    val gpsPairs = trajectory zip trajectory.tail
 
     // compute segments with the used mode
     val startEndWithMode = gpsPairs.flatMap {
