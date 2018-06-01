@@ -76,16 +76,23 @@ object GeoJSONConverter {
 
 
   def toGeoJSONLineString(entries: Seq[TrackPoint], properties: Map[String, String] = Map()): JsonObject = {
-    val concisePoints = entries.head :: entries.sliding(2).collect { case Seq(a,b) if a != b => b }.toList
+
+    val concisePoints: List[TrackPoint] = if (entries.nonEmpty) {
+      entries.head :: entries.sliding(2).collect { case Seq(a, b) if a != b => b }.toList
+    } else {
+      List.empty
+    }
 
     val coordinates = Json.createArrayBuilder()
-    concisePoints.zipWithIndex.foreach{
-      case(p, i) => coordinates.add(i, Json.createArrayBuilder(Seq(p.long, p.lat).asJava))
+    concisePoints.zipWithIndex.foreach {
+      case (p, i) => coordinates.add(i, Json.createArrayBuilder(Seq(p.long, p.lat).asJava))
     }
 
     val props = Json.createObjectBuilder()
-      .add("timestamp-start", entries.head.timestamp.toString)
-      .add("timestamp-end", entries.last.timestamp.toString)
+    if(entries.nonEmpty) {
+      props.add("timestamp-start", entries.head.timestamp.toString)
+        .add("timestamp-end", entries.last.timestamp.toString)
+    }
     properties.foreach(e => props.add(e._1, e._2))
 
     val feature = Json.createObjectBuilder()
