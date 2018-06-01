@@ -234,8 +234,12 @@ object ModePredictionPilot2 extends SQLiteAccess2ndPilot with OutlierDetecting w
         if(modesBetween.isEmpty) { // handle no mode change between both points
           //          println("no mode")
           // this happens due to compression, just take the last known mode
-          // TODO we might not have seen any mode before because i) it might be the first point at all and ii) the first in the trip split
-          val mode = compressedModes.filter(e => e._3.before(tp1.timestamp)).last
+          // we might not have seen any mode before because
+          // i) it might be the first point at all or
+          // ii) the first in the trip split
+          // -> we take the first mode
+          val modesBefore = compressedModes.filter(e => e._3.before(tp1.timestamp))
+          val mode = if(modesBefore.nonEmpty) modesBefore.last else compressedModes.head
           Seq((tp1, tp2, mode._1))
         } else if(modesBetween.size == 1) { // handle single mode change between both points
           // compute the split point
