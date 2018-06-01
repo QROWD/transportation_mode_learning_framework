@@ -44,18 +44,24 @@ trait ReverseGeoCodingTomTom {
 
     json match {
       case Success(j) => {
-//        println(j.toString)
+        //        println(j.toString)
         val addresses = j.getJsonArray("addresses")
-        val firstAddress = addresses.getJsonObject(0)
-        try {
-          firstAddress.getJsonObject("address").getString("streetName")
-        } catch {
-          case _: NullPointerException => ""
+
+        if (addresses.isEmpty) {
+          ""
+        } else {
+          val firstAddress = addresses.getJsonObject(0)
+          try {
+            firstAddress.getJsonObject("address").getString("streetName")
+          } catch {
+            case _: NullPointerException => ""
+          }
         }
       }
-      case Failure(e) =>
+      case Failure(e) => {
         e.printStackTrace()
         ""
+      }
     }
   }
 }
