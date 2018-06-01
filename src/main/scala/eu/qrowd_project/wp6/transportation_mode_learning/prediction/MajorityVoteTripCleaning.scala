@@ -93,6 +93,46 @@ class MajorityVoteTripCleaning(window: Int, iterations: Int = 1, step: Int = 1)
     (bestMode, probability, anchorElt._3)
   }
 
+//  def singleCleanStepBatched(trip: Trip,
+//                      modes: Seq[(String, Double, Timestamp)],
+//                      modeProbabilities: ModeProbabilities): (Trip, Seq[(String, Double, Timestamp)]) = {
+//    // add dummy elements to begin and end of the list of modes
+//    val extendedModes = padding(modes, dummyElement)
+//
+//    // sliding window and keep majority
+//    val cleanedModes = extendedModes
+//      .sliding(window, step = window)    // n elements before + the current element + n elements after
+//      .map(majorityBatch) // majority voting, but timestamp taken from middle element
+//      .toSeq
+//
+//
+//  }
+
+  private def majorityBatch(values: Seq[(String, Double, Timestamp)]): Seq[(String, Double, Timestamp)] = {
+
+    val mode2Frequency = values
+      .filter(v => v != dummyElement) // omit dummy elements
+      .groupBy(_._1)
+      .mapValues(_.size)
+
+    val bestMode = if (dropStillMode) {
+      // keep "still" if there is no other mode in the window
+      if(mode2Frequency.size == 1 && mode2Frequency.contains("still")) {
+        "still"
+      } else { // drop "still"
+        mode2Frequency
+          .filter(_._1 != "still")
+          .maxBy(_._2)._1
+      }
+    } else {
+      mode2Frequency.maxBy(_._2)._1
+    }
+
+    values.map {
+      case (mode, p, t) => (bestMode, p, t)
+    }
+  }
+
 }
 
 object MajorityVoteTripCleaning {
