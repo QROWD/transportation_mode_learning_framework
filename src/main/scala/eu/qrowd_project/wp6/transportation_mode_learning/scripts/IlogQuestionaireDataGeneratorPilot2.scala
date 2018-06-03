@@ -280,7 +280,7 @@ object IlogQuestionaireDataGeneratorPilot2 extends JSONExporter with ParquetLoca
           val addressStart = addressLookup(trip.start)
           val addressEnd = addressLookup(trip.end)
 
-          (userId, trip.start, addressStart, poiStart, trip.end, addressEnd, poiEnd, trajectory)
+          (userId, trip.start, addressStart, poiStart, trip.end, addressEnd, poiEnd, trip.trace)
         })
       case other =>
         println(other)
