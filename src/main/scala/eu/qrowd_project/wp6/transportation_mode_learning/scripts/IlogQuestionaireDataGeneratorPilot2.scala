@@ -280,7 +280,7 @@ object IlogQuestionaireDataGeneratorPilot2 extends JSONExporter with ParquetLoca
           val addressStart = addressLookup(trip.start)
           val addressEnd = addressLookup(trip.end)
 
-          (userId, trip.start, addressStart, poiStart, trip.end, addressEnd, poiEnd)
+          (userId, trip.start, addressStart, poiStart, trip.end, addressEnd, poiEnd, trajectory)
         })
       case other =>
         println(other)
@@ -288,7 +288,7 @@ object IlogQuestionaireDataGeneratorPilot2 extends JSONExporter with ParquetLoca
     }
 
     // write as JSON to disk
-    write(toJson(result), outputPath)
+    write(toJson(result.map(e => (e._1, e._2, e._3, e._4, e._5, e._6, e._7))), outputPath)
 
     // write to SQLite
     //
@@ -300,9 +300,10 @@ object IlogQuestionaireDataGeneratorPilot2 extends JSONExporter with ParquetLoca
       val endPoint: TrackPoint = e._5
       val addressEnd: Address = e._6
 //      val poiEnd: POI = e._7
+      val trajectory = e._8
 
       val trip = Pilot2Stage(
-        userID, "", startPoint, addressStart.label, endPoint, addressEnd.label, trajectory = Seq.empty)
+        userID, "", startPoint, addressStart.label, endPoint, addressEnd.label, trajectory = trajectory)
 
       writeTripInfo(trip)
     })
