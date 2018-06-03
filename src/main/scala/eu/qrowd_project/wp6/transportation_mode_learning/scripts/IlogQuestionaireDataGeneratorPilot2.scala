@@ -193,7 +193,7 @@ object IlogQuestionaireDataGeneratorPilot2 extends JSONExporter with ParquetLoca
   private def run(config: Config): Unit = {
     //    val inputPath = args(0)
     //    val data = loadDataFromDisk(inputPath, date)
-    connect(appConfig.getString("sqlite_settings.db_file"))
+    connect(appConfig.getString("sqlite_settings.start_stop_detection_db_file"))
 
     logger.info(s"processing ILog data of date ${config.date} ...")
     val date = config.date

@@ -391,7 +391,7 @@ object ModePredictionPilot2 extends SQLiteAccess2ndPilot with OutlierDetecting w
         try {
           // create the output dirs
           Files.createDirectories(outputDir)
-          connect(appConfig.getString("sqlite_settings.db_file"))
+          connect(appConfig.getString("sqlite_settings.mode_detection_db_file"))
 
           run(config)
         } catch {
