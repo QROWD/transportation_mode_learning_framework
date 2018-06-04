@@ -6,12 +6,14 @@ import java.nio.file.{Files, Paths}
 import java.sql.Timestamp
 import java.time.format.DateTimeFormatter
 import java.time.{Duration, LocalDateTime}
+import java.util.concurrent.TimeUnit
 
 import scala.collection.JavaConverters._
 
-import eu.qrowd_project.wp6.transportation_mode_learning.prediction.{MajorityVoteTripCleaning, ModeProbabilities, RClient, RClientServer}
+import eu.qrowd_project.wp6.transportation_mode_learning.prediction._
 import eu.qrowd_project.wp6.transportation_mode_learning.scripts._
 import eu.qrowd_project.wp6.transportation_mode_learning.util._
+import eu.qrowd_project.wp6.transportation_mode_learning.util.window.{TimeWindow, Window}
 
 
 /**
@@ -86,7 +88,7 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
 
     // cleaned best modes
     val cleanedBestModes: Seq[(String, Double, Timestamp)] =
-      MajorityVoteTripCleaning(2000, iterations = 3).clean(trip, bestModes.map(_._1), probMatrix)._2
+      MajorityVoteTripCleaning(TimeWindow.of(60, TimeUnit.SECONDS), iterations = 3).clean(trip, bestModes.map(_._1), probMatrix)._2
 
     if(debug) {
       // print hte raw GeoJSON points and lines
@@ -153,7 +155,7 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
           bestModes.mkString("\n").getBytes(Charset.forName("UTF-8")))
 
         // cleaned best modes
-        val cleanedBestModes = MajorityVoteTripCleaning(100, iterations = 10).clean(trip, bestModes.map(_._1), modes)._2
+        val cleanedBestModes = MajorityVoteTripCleaning(Window(100), iterations = 10).clean(trip, bestModes.map(_._1), modes)._2
         Files.write(
           Paths.get(s"/tmp/trip${idx}_best_modes_cleaned.out"),
           cleanedBestModes.mkString("\n").getBytes(Charset.forName("UTF-8")))

@@ -2,8 +2,12 @@ package eu.qrowd_project.wp6.transportation_mode_learning.prediction
 
 import java.sql.Timestamp
 import java.time.LocalDateTime
+import java.util.concurrent.TimeUnit
+
+import scala.concurrent.duration.TimeUnit
 
 import eu.qrowd_project.wp6.transportation_mode_learning.scripts.Trip
+import eu.qrowd_project.wp6.transportation_mode_learning.util.window.Window
 
 /**
   * Majority voting based cleaning of a sequence of transportation modes.
@@ -18,7 +22,7 @@ import eu.qrowd_project.wp6.transportation_mode_learning.scripts.Trip
   *
   * @author Lorenz Buehmann
   */
-class MajorityVoteTripCleaning(window: Int, iterations: Int = 1, step: Int = 1)
+class MajorityVoteTripCleaning(window: Window, iterations: Int = 1, step: Int = 1)
   extends TripCleaning {
 
   val logger = com.typesafe.scalalogging.Logger("MajorityVoteTripCleaning")
@@ -31,6 +35,8 @@ class MajorityVoteTripCleaning(window: Int, iterations: Int = 1, step: Int = 1)
                      modes: Seq[(String, Double, Timestamp)],
                      modeProbabilities: ModeProbabilities): (Trip, Seq[(String, Double, Timestamp)]) = {
     logger.info("cleaning mode sequence...")
+
+    logger.info(s"window size = ${window.numEntries}")
 
     var tmp = (trip, modes)
 
@@ -50,7 +56,7 @@ class MajorityVoteTripCleaning(window: Int, iterations: Int = 1, step: Int = 1)
 
     // sliding window and keep majority
     val cleanedModes = extendedModes
-      .sliding(window * 2 + 1)    // n elements before + the current element + n elements after
+      .sliding(window.numEntries * 2 + 1)    // n elements before + the current element + n elements after
       .map(majority) // majority voting, but timestamp taken from middle element
       .toSeq
 
@@ -59,10 +65,16 @@ class MajorityVoteTripCleaning(window: Int, iterations: Int = 1, step: Int = 1)
     (trip, cleanedModes)
   }
 
+  def window(timeValue: Long,
+             timeUnit: TimeUnit = TimeUnit.SECONDS,
+             resolutionValue: Long = 50,
+             resolutionTimeUnit: TimeUnit = TimeUnit.MILLISECONDS) =
+    timeUnit.toMillis(timeValue) / resolutionTimeUnit.toMillis(resolutionValue)
+
   /**
     * Do padding left and right side of the sequence with the given element.
     */
-  def padding[A](seq: Seq[A], elt: A): Seq[A] = List.fill(window)(elt) ++ seq ++ List.fill(window)(elt)
+  def padding[A](seq: Seq[A], elt: A): Seq[A] = List.fill(window.numEntries)(elt) ++ seq ++ List.fill(window.numEntries)(elt)
 
   private def majority(values: Seq[(String, Double, Timestamp)]) = {
 
@@ -85,7 +97,7 @@ class MajorityVoteTripCleaning(window: Int, iterations: Int = 1, step: Int = 1)
     }
 
     // take the middle element
-    val anchorElt = values(window)
+    val anchorElt = values(window.numEntries)
 
     val probability = if (bestMode == anchorElt._1) anchorElt._2 else 0.000001
 
@@ -136,5 +148,6 @@ class MajorityVoteTripCleaning(window: Int, iterations: Int = 1, step: Int = 1)
 }
 
 object MajorityVoteTripCleaning {
-  def apply(window: Int, iterations: Int = 1): MajorityVoteTripCleaning = new MajorityVoteTripCleaning(window, iterations)
+  def apply(window: Window, iterations: Int = 1): MajorityVoteTripCleaning =
+    new MajorityVoteTripCleaning(window, iterations)
 }
