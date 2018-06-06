@@ -3,7 +3,7 @@ package eu.qrowd_project.wp6.transportation_mode_learning.util
 import scala.collection.mutable
 
 import org.aksw.jena_sparql_api.core.FluentQueryExecutionFactory
-import org.apache.jena.query.{QuerySolution, ResultSet}
+import org.apache.jena.query.QuerySolution
 
 /**
   * Utility class to get locations from LinkedGeoData KB.
@@ -16,8 +16,15 @@ class GeoLocationRetrieval(val endpointURL: String) {
     .http(endpointURL)
     .create()
 
-  def executeQuery(query: String) = {
-    qef.createQueryExecution(query).execSelect()
+  def executeQuery[A](query: String, f: QuerySolution => A): Seq[A] = {
+    val qe = qef.createQueryExecution(query)
+    val rs = qe.execSelect()
+    var res = mutable.Seq[A]()
+    while(rs.hasNext) {
+      res :+= f(rs.next())
+    }
+    qe.close()
+    res
   }
 
   def getLocations(cls: String) = {
@@ -31,16 +38,10 @@ class GeoLocationRetrieval(val endpointURL: String) {
         |}
       """.stripMargin
 
-    val qe = qef.createQueryExecution(query)
-    val rs = qe.execSelect()
-    var locations = mutable.Seq[Location]()
-    while(rs.hasNext) {
-      val qs = rs.next()
-      locations :+= Location(cls,
-        qs.getLiteral("l").getLexicalForm,
-        qs.getLiteral("geo").getLexicalForm)
-    }
-    qe.close()
+    val locations = executeQuery(query,
+      qs => Location(cls,
+                    qs.getLiteral("l").getLexicalForm,
+                    qs.getLiteral("geo").getLexicalForm))
 
     locations
   }
