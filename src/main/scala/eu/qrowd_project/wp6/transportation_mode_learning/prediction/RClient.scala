@@ -31,12 +31,15 @@ class RClient(baseDir: String, scriptPath: String, modelPath: String) {
     // write data as CSV to disk
     val inputFile = serializeInput(accelerometerData)
 
+    val outputFile = File.createTempFile("qrowd_acc_predictes_modes_csv", ".tmp")
+    outputFile.deleteOnExit()
+
     // call external R script
-    val command = s"Rscript --vanilla $scriptPath prediction $modelPath ${inputFile.toFile.getAbsolutePath} "
+    val command = s"Rscript --vanilla $scriptPath prediction $modelPath ${inputFile.toFile.getAbsolutePath} ${outputFile.getAbsolutePath}"
     sys.process.Process(command, new java.io.File(baseDir)).!
 
     // read output from CSV to internal list
-    val (header, probabilities) = readOutput()
+    val (header, probabilities) = readOutput(outputFile)
 
     // keep track of timestamp from input
     val probsWithTime = (accelerometerData zip probabilities).map(pair => {
@@ -57,9 +60,8 @@ class RClient(baseDir: String, scriptPath: String, modelPath: String) {
     Files.write(inputFile, content.getBytes("UTF-8"))
   }
 
-  def readOutput(): (Seq[String], mutable.Buffer[(Double, Double, Double, Double, Double, Double)]) = {
-    val outputCSV = Paths.get(baseDir).resolve("out.csv")
-    val lines = Files.readAllLines(outputCSV).asScala // read all lines
+  def readOutput(file: File): (Seq[String], mutable.Buffer[(Double, Double, Double, Double, Double, Double)]) = {
+    val lines = Files.readAllLines(file.toPath).asScala // read all lines
     val header = lines.head.replace("\"", "").split(",").toSeq
     val probabilities = lines
       .drop(1) // skip header

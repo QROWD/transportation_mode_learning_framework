@@ -1,5 +1,5 @@
 package eu.qrowd_project.wp6.transportation_mode_learning.prediction
-import java.io.PrintStream
+import java.io.{File, PrintStream}
 import java.net.{InetAddress, Socket}
 import java.sql.Timestamp
 
@@ -62,7 +62,7 @@ class RClientServer(
     out.close()
 
     // read output from CSV to internal list
-    val (header, probabilities) = readOutput()
+    val (header, probabilities) = readOutput(new File(new File(baseDir), "out.csv"))
 
     // keep track of timestamp from input
     val probsWithTime = (accelerometerData zip probabilities).map(pair => {

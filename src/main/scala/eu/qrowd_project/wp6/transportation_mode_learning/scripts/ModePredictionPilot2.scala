@@ -7,7 +7,7 @@ import java.sql.Timestamp
 import java.time.{Duration, LocalDate}
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.{ExecutorService, Executors, TimeUnit}
 
 import com.typesafe.config.ConfigFactory
 import eu.qrowd_project.wp6.transportation_mode_learning.{Pilot2Stage, Predict}
@@ -327,7 +327,10 @@ object ModePredictionPilot2 extends SQLiteAccess2ndPilot with OutlierDetecting w
       val fullDayAccelerometerData =
         cassandra.getAccDataForUserAndDay(user, config.date.format(formatter))
 
-      trips(user).zipWithIndex.foreach(
+//      val pool: ExecutorService = Executors.newFixedThreadPool(4)
+      trips(user).zipWithIndex
+        .par
+        .foreach(
         userWithTripIdx => {
           val trip = userWithTripIdx._1._2
           val tripIdx: Int = userWithTripIdx._2
