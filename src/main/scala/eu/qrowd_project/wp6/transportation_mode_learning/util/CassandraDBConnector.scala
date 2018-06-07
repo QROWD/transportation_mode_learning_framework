@@ -87,7 +87,7 @@ class CassandraDBConnector(var userIds: Seq[String] = Seq()) {
   }
 
   def getAccDataForUserAndDay(userID: String, day: String): Seq[AccelerometerRecord] = {
-    logger.info(s"getting accuracy data for user $userID on $day...")
+    logger.info(s"getting accelerometer data for user $userID on $day...")
     val resultSet: ResultSet = session.execute(
       s"SELECT * FROM $userID.accelerometerevent WHERE day='$day'")
 
