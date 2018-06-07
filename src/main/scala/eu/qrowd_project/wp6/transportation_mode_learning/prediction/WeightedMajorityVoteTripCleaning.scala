@@ -4,6 +4,7 @@ import java.sql.Timestamp
 import java.time.LocalDateTime
 
 import eu.qrowd_project.wp6.transportation_mode_learning.scripts.Trip
+import eu.qrowd_project.wp6.transportation_mode_learning.util.window.Window
 
 /**
   * Weighted majority voting based cleaning of a sequence of transportation modes.
@@ -18,7 +19,7 @@ import eu.qrowd_project.wp6.transportation_mode_learning.scripts.Trip
   * @param step       the step size when sliding over the sequence
   * @author Lorenz Buehmann
   */
-class WeightedMajorityVoteTripCleaning(window: Int, iterations: Int = 1, step: Int = 1)
+class WeightedMajorityVoteTripCleaning(window: Window, iterations: Int = 1, step: Int = 1)
   extends MajorityVoteTripCleaning(window, iterations, step) {
 
   override val logger = com.typesafe.scalalogging.Logger("WeightedMajorityVoteTripCleaning")
@@ -35,13 +36,13 @@ class WeightedMajorityVoteTripCleaning(window: Int, iterations: Int = 1, step: I
 
     // sliding window and keep majority
     val cleanedModes = extendedModeProbabilities
-      .sliding(window * 2 + 1) // n elements before + the current element + n elements after
+      .sliding(window.numEntries * 2 + 1) // n elements before + the current element + n elements after
       .map(weightedSumMajority) // majority voting, but timestamp taken from middle element
       .map { idx =>
       val bestMode = modeProbabilities.schema(idx)
 
       // take the middle element
-      val anchorElt = extendedModeProbabilities(window)
+      val anchorElt = extendedModeProbabilities(window.numEntries)
 
       // highest probability of anchor elt
       val anchorIdx = anchorElt._2

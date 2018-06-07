@@ -187,7 +187,7 @@ object ModePredictionPilot2 extends SQLiteAccess2ndPilot with OutlierDetecting w
       }
     }).toList
 
-    stages.foreach(writeTripInfo(_))
+    stages.foreach(writeTripInfo)
   }
 
   private def buildStage(userID: UserID, start: TrackPoint, stop: TrackPoint, mode: String, overallTrip: Trip): Pilot2Stage = {
