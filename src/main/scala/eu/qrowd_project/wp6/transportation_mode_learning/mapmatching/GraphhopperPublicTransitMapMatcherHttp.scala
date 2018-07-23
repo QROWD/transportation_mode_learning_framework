@@ -9,7 +9,7 @@ import java.util.stream.Collectors
 
 import scala.util.Try
 
-import eu.qrowd_project.wp6.transportation_mode_learning.util.{GPXConverter, TrackPoint, TryWith}
+import eu.qrowd_project.wp6.transportation_mode_learning.util.{TrackPoint, TryWith}
 import io.jenetics.jpx.GPX
 import org.apache.http.impl.client.HttpClientBuilder
 import scalaj.http.Http
@@ -23,28 +23,22 @@ class GraphhopperPublicTransitMapMatcherHttp(val url: String) extends Graphhoppe
   val logger = com.typesafe.scalalogging.Logger("Graphhopper Public Transit Map Matcher")
 
   private lazy val httpClient = HttpClientBuilder.create().build()
-
-  import java.time.format.DateTimeFormatter
   val formatter = new DateTimeFormatterBuilder()
     .appendPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
-//    .appendZoneId()
     .toFormatter
 
-  def query(trajectory: Seq[TrackPoint]): Option[GPX] = request(trajectory)
-
-  private def request(trajectory: Seq[TrackPoint]): Option[GPX] = {
-    val request = Http(url)
+  def query(trajectory: Seq[TrackPoint], vehicle: Option[String] = None): Option[GPX] = {
+    var request = Http(url)
       .param(RoutingAPIParams.TYPE, "gpx")
       .param(RoutingAPIParams.POINT, s"${trajectory.head.lat},${trajectory.head.long}")
       .param(RoutingAPIParams.POINT, s"${trajectory.last.lat},${trajectory.last.long}")
       .param(RoutingAPIParams.EARLIEST_DEPARTURE_TIME, trajectory.head.timestamp.toLocalDateTime.format(formatter))
-    println(new URL(request.urlBuilder.apply(request)))
+
+    if(vehicle.nonEmpty) request = request.param(RoutingAPIParams.VEHICLE, vehicle.get)
+
+    logger.debug(s"routing request: ${new URL(request.urlBuilder.apply(request))}")
     Try(
-      Http(url)
-        .param(RoutingAPIParams.TYPE, "gpx")
-        .param(RoutingAPIParams.POINT, s"${trajectory.head.lat},${trajectory.head.long}")
-        .param(RoutingAPIParams.POINT, s"${trajectory.last.lat},${trajectory.last.long}")
-        .param(RoutingAPIParams.EARLIEST_DEPARTURE_TIME, trajectory.head.timestamp.toLocalDateTime.format(formatter))
+      request
         .execute(is => {
           TryWith(new BufferedReader(new InputStreamReader(is))) { br =>
             br.lines.collect(Collectors.joining("\n"))
@@ -83,7 +77,6 @@ class GraphhopperPublicTransitMapMatcherHttp(val url: String) extends Graphhoppe
 }
 
 object GraphhopperPublicTransitMapMatcherHttp {
-  import scala.collection.JavaConverters._
 
   def main(args: Array[String]): Unit = {
     import java.time.format.DateTimeFormatter
@@ -93,7 +86,7 @@ object GraphhopperPublicTransitMapMatcherHttp {
       TrackPoint(46.06175, 11.12376, Timestamp.valueOf(LocalDateTime.parse("2018-07-10 10:48:00", formatter))),
       TrackPoint(46.06481, 11.12336, Timestamp.valueOf(LocalDateTime.parse("2018-07-10 10:49:00", formatter)))
     )
-    val response = new GraphhopperPublicTransitMapMatcherHttp(url = "http://localhost:8989/route").query(data)
+    val response = new GraphhopperPublicTransitMapMatcherHttp(url = "http://localhost:8989/route").query(data, Some("train"))
     print( response)
   }
 }
