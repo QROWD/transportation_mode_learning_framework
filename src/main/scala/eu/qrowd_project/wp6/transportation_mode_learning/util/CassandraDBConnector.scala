@@ -47,7 +47,7 @@ class CassandraDBConnector(var userIds: Seq[String] = Seq()) {
       .withCredentials(
         config.getString("connection.credentials.user"),
         config.getString("connection.credentials.password"))
-      .withMaxSchemaAgreementWaitSeconds(60)
+      .withMaxSchemaAgreementWaitSeconds(10)
       .withSocketOptions(new SocketOptions()
         .setConnectTimeoutMillis(30000)
         .setReadTimeoutMillis(30000))
@@ -88,8 +88,9 @@ class CassandraDBConnector(var userIds: Seq[String] = Seq()) {
 
   def getAccDataForUserAndDay(userID: String, day: String): Seq[AccelerometerRecord] = {
     logger.info(s"getting accuracy data for user $userID on $day...")
-    val resultSet: ResultSet = session.execute(
-      s"SELECT * FROM $userID.accelerometerevent WHERE day='$day'")
+    val query = s"SELECT * FROM $userID.accelerometerevent WHERE day='$day'"
+    logger.info(s"query: $query")
+    val resultSet: ResultSet = session.execute(query)
 
     time {
       if (resultSet != null) {
@@ -260,10 +261,16 @@ object CassandraDBConnector {
 
 
   def main(args: Array[String]): Unit = {
-    val cassandra = CassandraDBConnector()
-    val data = cassandra.readData("20180330")
-    println(data.size)
-    cassandra.close()
+    val dateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS")
+    def asTimestamp(timestamp :String): Timestamp =
+      Timestamp.valueOf(LocalDateTime.parse(timestamp.substring(0, 17), dateTimeFormatter))
+    println(asTimestamp("20180601151530123"))
+
+//
+//    val cassandra = CassandraDBConnector()
+//    val data = cassandra.readData("20180330")
+//    println(data.size)
+//    cassandra.close()
   }
 }
 
