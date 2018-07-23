@@ -8,6 +8,8 @@ import scalaj.http.Http
 import java.io.{BufferedReader, ByteArrayInputStream, InputStreamReader}
 import java.util.stream.Collectors
 
+import scala.collection.JavaConverters._
+
 import io.jenetics.jpx.GPX
 
 /**
@@ -123,8 +125,8 @@ object GraphhopperMapMatcherHttp {
         |</gpx>
       """.stripMargin
 
-    val response = new GraphhopperMapMatcherHttp(url = "http://localhost:8989/match").query(data)
-    print(response)
+    val response = new GraphhopperMapMatcherHttp(url = "http://localhost:8988/match").query(data)
+    print( response.get.getRoutes.get(0).getPoints.asScala.mkString("\n"))
   }
 }
 
