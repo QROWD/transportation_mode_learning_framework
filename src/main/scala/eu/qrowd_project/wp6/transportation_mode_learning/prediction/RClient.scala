@@ -26,10 +26,12 @@ class RClient(baseDir: String, scriptPath: String, modelPath: String) {
     * Calls the mode prediction given the accelerometer data.
     *
     * @param accelerometerData x,y,z values of the raw accelerometer data
+    * @param id some optional identifier to keep track of input data for R code written to disk in temp folder
     */
-  def predict(accelerometerData: Seq[(Double, Double, Double, Timestamp)]): ModeProbabilities = {
+  def predict(accelerometerData: Seq[(Double, Double, Double, Timestamp)],
+              id: String = ""): ModeProbabilities = {
     // write data as CSV to disk
-    val inputFile = serializeInput(accelerometerData)
+    val inputFile = serializeInput(accelerometerData, id)
 
     val outputFile = File.createTempFile("qrowd_acc_predictes_modes_csv", ".tmp")
     outputFile.deleteOnExit()
@@ -53,10 +55,11 @@ class RClient(baseDir: String, scriptPath: String, modelPath: String) {
     predictedProbabilities
   }
 
-  def serializeInput(accelerometerData: Seq[(Double, Double, Double, Timestamp)]): Path = {
+  def serializeInput(accelerometerData: Seq[(Double, Double, Double, Timestamp)],
+                     id: String = ""): Path = {
     // write data as CSV to disk
-    val inputFile = File.createTempFile("qrowddata", ".tmp").toPath
-    val content = "x,y,z\n" + accelerometerData.map(entry => (entry._1, entry._2, entry._3).productIterator.mkString(",")).mkString("\n")
+    val inputFile = File.createTempFile(s"qrowd_acc_data-$id-", ".tmp").toPath
+    val content = "x,y,z,timestamp\n" + accelerometerData.map(entry => (entry._1, entry._2, entry._3, entry._4).productIterator.mkString(",")).mkString("\n")
     Files.write(inputFile, content.getBytes("UTF-8"))
   }
 
