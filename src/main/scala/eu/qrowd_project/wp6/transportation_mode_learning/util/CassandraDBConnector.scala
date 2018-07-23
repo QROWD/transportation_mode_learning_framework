@@ -47,7 +47,7 @@ class CassandraDBConnector(var userIds: Seq[String] = Seq()) {
       .withCredentials(
         config.getString("connection.credentials.user"),
         config.getString("connection.credentials.password"))
-      .withMaxSchemaAgreementWaitSeconds(10)
+      .withMaxSchemaAgreementWaitSeconds(60)
       .withSocketOptions(new SocketOptions()
         .setConnectTimeoutMillis(30000)
         .setReadTimeoutMillis(30000))
@@ -261,16 +261,10 @@ object CassandraDBConnector {
 
 
   def main(args: Array[String]): Unit = {
-    val dateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS")
-    def asTimestamp(timestamp :String): Timestamp =
-      Timestamp.valueOf(LocalDateTime.parse(timestamp.substring(0, 17), dateTimeFormatter))
-    println(asTimestamp("20180601151530123"))
-
-//
-//    val cassandra = CassandraDBConnector()
-//    val data = cassandra.readData("20180330")
-//    println(data.size)
-//    cassandra.close()
+    val cassandra = CassandraDBConnector()
+    val data = cassandra.readData("20180330")
+    println(data.size)
+    cassandra.close()
   }
 }
 

@@ -43,7 +43,8 @@ trait SQLiteAccess2ndPilot {
   val dateTimeFormatter = DateTimeFormatter.ofPattern("YYYY-MM-dd HH:mm:ss")
 
   def writeTripInfo(trip: Pilot2Stage): Unit = {
-    val jsonPointsStr = "[" + trip.trajectory.map(p => s"[${p.long},${p.lat}]").mkString(", ") + "]"
+    val wholeTrajectory = Seq(trip.start) ++ trip.trajectory ++ Seq(trip.stop)
+    val jsonPointsStr = s"[ " + wholeTrajectory.map(p => s"[${p.long},${p.lat}]").mkString(", ") + " ]"
     val queryStr =
       s"""
          |INSERT INTO trip(
