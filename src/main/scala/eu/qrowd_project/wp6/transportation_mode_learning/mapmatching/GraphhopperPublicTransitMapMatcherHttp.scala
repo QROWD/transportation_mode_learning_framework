@@ -15,9 +15,9 @@ import org.apache.http.impl.client.HttpClientBuilder
 import scalaj.http.Http
 
 /**
-  * Communicate with the Graphhopper server via HTTP.
+  * Communicate with the GraphHopper server via HTTP.
   *
-  * @param url the service URL
+  * @param url the service URL for the routing API, e.g. `http://localhost:8989/route`
   */
 class GraphhopperPublicTransitMapMatcherHttp(val url: String) extends GraphhopperMapMatchingService {
   val logger = com.typesafe.scalalogging.Logger("Graphhopper Public Transit Map Matcher")
@@ -27,6 +27,15 @@ class GraphhopperPublicTransitMapMatcherHttp(val url: String) extends Graphhoppe
     .appendPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
     .toFormatter
 
+  /**
+    * Perform a query to the Routing API of GraphHopper to find a route of the public transit data.
+    * Only `start` and `end` of the trajectory will be used for routing request.
+    * Optionally, the type of vehicle can be suggested.
+    *
+    * @param trajectory the GPS data
+    * @param vehicle the type of the vehicle
+    * @return GPX data containing the route
+    */
   def query(trajectory: Seq[TrackPoint], vehicle: Option[String] = None): Option[GPX] = {
     var request = Http(url)
       .param(RoutingAPIParams.TYPE, "gpx")
