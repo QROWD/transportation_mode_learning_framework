@@ -18,6 +18,8 @@ import eu.qrowd_project.wp6.transportation_mode_learning.scripts.{ClusterTrip, T
 import eu.qrowd_project.wp6.transportation_mode_learning.util._
 import scopt.Read
 
+import scala.collection.JavaConverters._
+
 object UserStudies3
   extends SQLiteAccessUserStudies3
     with OutlierDetecting
@@ -180,7 +182,7 @@ object UserStudies3
     val transitionPointsWithMode: List[(TrackPoint, String)] = computeTransitionPoints(trip, modesWProbAndTimeStamp.toList)
     Files.write(Paths.get(s"/tmp/${userID}_transition_points_trip$tripIdx.out"), transitionPointsWithMode.mkString("\n").getBytes(Charset.forName("UTF-8")))
 
-    val stages: List[UserStudies3Stage] = transitionPointsWithMode.sliding(2).map(pointsWMode => {
+    transitionPointsWithMode.sliding(2).map(pointsWMode => {
       if (pointsWMode.size > 1) {
         val startPoint: TrackPoint = pointsWMode(0)._1
         val stopPoint: TrackPoint = pointsWMode(1)._1
@@ -194,13 +196,12 @@ object UserStudies3
         buildStage(userID, startPoint, trip.end, mode, trip)
       }
     }).toList
-
-    stages.foreach(writeTripInfo)
-
-    stages
   }
 
-  private def buildStage(userID: UserID, start: TrackPoint, stop: TrackPoint, mode: String, overallTrip: Trip): UserStudies3Stage = {
+  private def buildStage(userID: UserID,
+                         start: TrackPoint,
+                         stop: TrackPoint,
+                         mode: String, overallTrip: Trip): UserStudies3Stage = {
     var points: Seq[TrackPoint] = overallTrip.trace.filter(point => point.timestamp.after(start.timestamp) && point.timestamp.before(stop.timestamp))
 
     // add start and end
@@ -355,9 +356,14 @@ object UserStudies3
 
           // perform the map matching
           stages.foreach{ stage =>
-            val matchedTrajectory = mapMatching(stage.trajectory, stage.mode)
+            val mappedTrajectory = mapMatching(stage.trajectory, stage.mode)
+                .get.getRoutes.get(0).getPoints.asScala.map(wp => new TrackPoint(wp.getLatitude.toDegrees, wp.getLongitude.toDegrees, null))
 
+            stage.mappedTrajectory = mappedTrajectory;
           }
+
+          // write to DB
+          stages.foreach(writeTripInfo)
         }
       )
     })
