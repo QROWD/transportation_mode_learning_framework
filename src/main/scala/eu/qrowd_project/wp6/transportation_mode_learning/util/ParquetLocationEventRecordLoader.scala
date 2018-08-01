@@ -19,7 +19,7 @@ trait ParquetLocationEventRecordLoader {
     * @param path the path to load from
     * @return the records
     */
-  private def loadData(path: String): Seq[LocationEventRecord] = {
+  def loadData(path: String): Seq[LocationEventRecord] = {
     // This is required
     implicit val hadoopConfiguration: Configuration = new Configuration()
     implicit val hadoopFileSystem: FileSystem = FileSystem.get(hadoopConfiguration)
@@ -32,4 +32,16 @@ trait ParquetLocationEventRecordLoader {
       .map(row => LocationEventRecord.from(row))
   }
 
+}
+
+object ParquetLocationEventRecordToCsvExporter extends ParquetLocationEventRecordLoader {
+  def main(args: Array[String]): Unit = {
+    val data = loadData(args(0))
+
+    val header = "timestamp,longitude,latitude\n"
+    val res = header + data.map(r => Seq(r.timestamp, r.longitude, r.latitude).mkString(",")).mkString("\n")
+
+    import java.io.PrintWriter
+    new PrintWriter("/tmp/locationdata.csv") { write(res); close() }
+  }
 }

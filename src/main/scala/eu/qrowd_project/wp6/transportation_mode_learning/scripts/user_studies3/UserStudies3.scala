@@ -12,18 +12,19 @@ import java.util.concurrent.TimeUnit
 import scala.collection.immutable
 
 import com.typesafe.config.ConfigFactory
+import eu.qrowd_project.wp6.transportation_mode_learning.Predict
+import eu.qrowd_project.wp6.transportation_mode_learning.mapmatching.GraphhopperMapMatcherHttp
 import eu.qrowd_project.wp6.transportation_mode_learning.scripts.{ClusterTrip, Trip, TripDetection, WindowDistanceTripDetection}
 import eu.qrowd_project.wp6.transportation_mode_learning.util._
-import eu.qrowd_project.wp6.transportation_mode_learning.{Pilot2Stage, Predict}
 import scopt.Read
 
 object UserStudies3
-  extends SQLiteAccess2ndPilot
+  extends SQLiteAccessUserStudies3
     with OutlierDetecting
     with JSONExporter
     with ReverseGeoCodingTomTom {
 
-  val logger = com.typesafe.scalalogging.Logger("Mode detection")
+  val logger = com.typesafe.scalalogging.Logger("UserStudies3")
 
   type UserID = String
   private val tmpDir = Paths.get(System.getProperty("java.io.tmpdir"))
@@ -164,7 +165,7 @@ object UserStudies3
                        trip: Trip,
                        accelerometerData: Seq[AccelerometerRecord],
                        tripIdx: Int,
-                       config: Config): immutable.Seq[Pilot2Stage] = {
+                       config: Config): immutable.Seq[UserStudies3Stage] = {
     logger.info(s"Running mode detection for user $userID on trip $tripIdx " +
       s"${trip.start.timestamp.toLocalDateTime.toString} - ${trip.end.timestamp.toLocalDateTime.toString}")
 
@@ -179,7 +180,7 @@ object UserStudies3
     val transitionPointsWithMode: List[(TrackPoint, String)] = computeTransitionPoints(trip, modesWProbAndTimeStamp.toList)
     Files.write(Paths.get(s"/tmp/${userID}_transition_points_trip$tripIdx.out"), transitionPointsWithMode.mkString("\n").getBytes(Charset.forName("UTF-8")))
 
-    val stages: List[Pilot2Stage] = transitionPointsWithMode.sliding(2).map(pointsWMode => {
+    val stages: List[UserStudies3Stage] = transitionPointsWithMode.sliding(2).map(pointsWMode => {
       if (pointsWMode.size > 1) {
         val startPoint: TrackPoint = pointsWMode(0)._1
         val stopPoint: TrackPoint = pointsWMode(1)._1
@@ -199,14 +200,17 @@ object UserStudies3
     stages
   }
 
-  private def buildStage(userID: UserID, start: TrackPoint, stop: TrackPoint, mode: String, overallTrip: Trip): Pilot2Stage = {
+  private def buildStage(userID: UserID, start: TrackPoint, stop: TrackPoint, mode: String, overallTrip: Trip): UserStudies3Stage = {
     var points: Seq[TrackPoint] = overallTrip.trace.filter(point => point.timestamp.after(start.timestamp) && point.timestamp.before(stop.timestamp))
 
+    // add start and end
     points = Seq(start) ++ points ++ Seq(stop)
 
+    // find addresses
     val startAddress = getStreet(start.long, start.lat)
     val stopAddress = getStreet(stop.long, start.lat)
-    Pilot2Stage(userID, mode, start, startAddress, stop, stopAddress, trajectory = points)
+
+    UserStudies3Stage(userID, mode, start, startAddress, stop, stopAddress, trajectory = points)
   }
 
   private def computeTransitionPoints(trip: Trip, bestModes: List[(String, Double, Timestamp)]) = {
@@ -347,16 +351,25 @@ object UserStudies3
           val filteredAccelerometerData = filter(fullDayAccelerometerData, trip.start.timestamp, trip.end.timestamp)
 
           // run the mode detection
-          runModeDetection(user, trip, filteredAccelerometerData, tripIdx, config)
+          val stages = runModeDetection(user, trip, filteredAccelerometerData, tripIdx, config)
 
           // perform the map matching
+          stages.foreach{ stage =>
+            val matchedTrajectory = mapMatching(stage.trajectory, stage.mode)
+
+          }
         }
       )
     })
   }
 
-  private def mapMatching(trip: Trip, mode: String) = {
+  val mapMatcherURL = appConfig.getString("map_matching.url")
+  val mapMatcher = new GraphhopperMapMatcherHttp(mapMatcherURL)
+  private def mapMatching(trajectory: Seq[TrackPoint], mode: String) = {
 
+    val matchedTrip = mapMatcher.query(trajectory)
+
+    matchedTrip
   }
 
   private def compress[A](l: List[A], fn: (A, A) => Boolean):List[A] = l.foldLeft(List[A]()) {

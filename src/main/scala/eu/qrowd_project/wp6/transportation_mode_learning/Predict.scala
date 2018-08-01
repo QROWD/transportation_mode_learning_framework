@@ -77,7 +77,8 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
       *   ...
       */
     val probMatrix: ModeProbabilities =
-      rClient.predict(accRecords.map(r => (r.x, r.y, r.z, r.timestamp)))
+      rClient.predict(accRecords.map(r => (r.x, r.y, r.z, r.timestamp)),
+        id = s"${user}_trip$tripIdx")
 
     // reduce the matrix to a vector of triples containing
     // - the mode that had the highest probability for the given sensor value

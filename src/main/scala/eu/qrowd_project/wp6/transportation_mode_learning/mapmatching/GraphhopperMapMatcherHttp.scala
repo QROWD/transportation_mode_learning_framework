@@ -15,7 +15,7 @@ import io.jenetics.jpx.GPX
 /**
   * Communicate with the Graphhopper server via HTTP.
   *
-  * @param url the service URL for the map mathcing API, e.g. `http://localhost:8989/match`
+  * @param url the service URL for the map matching API, e.g. `http://localhost:8989/match`
   */
 class GraphhopperMapMatcherHttp(val url: String) extends GraphhopperMapMatchingService {
   val logger = com.typesafe.scalalogging.Logger("Graphhopper Map Matcher")
@@ -127,6 +127,7 @@ object GraphhopperMapMatcherHttp {
 
     val response = new GraphhopperMapMatcherHttp(url = "http://localhost:8988/match").query(data)
     print( response.get.getRoutes.get(0).getPoints.asScala.mkString("\n"))
+    print( response.get.getTracks.get(0).getSegments.get(0).getPoints.asScala.mkString("\n"))
   }
 }
 

@@ -183,6 +183,18 @@
                 <!--<artifactId>systems-ucum-java8</artifactId>-->
                 <!--<version>0.7.2</version>-->
             <!--</dependency>-->
+
+            <dependency>
+                <groupId>org.scalikejdbc</groupId>
+                <artifactId>scalikejdbc_2.11</artifactId>
+                <version>3.3.0</version>
+            </dependency>
+            <dependency>
+                <groupId>org.scalikejdbc</groupId>
+                <artifactId>scalikejdbc-mapper-generator-core_2.11</artifactId>
+                <version>3.3.0</version>
+            </dependency>
+
         </dependencies>
 
     <!--</dependencyManagement>-->
