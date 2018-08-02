@@ -68,6 +68,7 @@ class TripDetection(
       trips.map(trip => {
         val response = mapMatcher.query(BarefootJSONConverter.convert(trip.trace).toString)
         println(response)
+        // TODO
       })
     }
 

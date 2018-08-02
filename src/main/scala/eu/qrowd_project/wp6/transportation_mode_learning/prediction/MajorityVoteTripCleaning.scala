@@ -31,6 +31,8 @@ class MajorityVoteTripCleaning(window: Window, iterations: Int = 1, step: Int = 
 
   val dropStillMode = true
 
+  val batched = false
+
   override def clean(trip: Trip,
                      modes: Seq[(String, Double, Timestamp)],
                      modeProbabilities: ModeProbabilities): (Trip, Seq[(String, Double, Timestamp)]) = {
@@ -42,7 +44,11 @@ class MajorityVoteTripCleaning(window: Window, iterations: Int = 1, step: Int = 
 
     for(i <- 1 to iterations) {
       logger.info(s"iteration $i")
-      tmp = singleCleanStep(tmp._1, tmp._2, modeProbabilities)
+      if(batched) {
+        tmp = singleCleanStepBatched(tmp._1, tmp._2, modeProbabilities)
+      } else {
+        tmp = singleCleanStep(tmp._1, tmp._2, modeProbabilities)
+      }
     }
     logger.info("done.")
     tmp
@@ -64,12 +70,6 @@ class MajorityVoteTripCleaning(window: Window, iterations: Int = 1, step: Int = 
 
     (trip, cleanedModes)
   }
-
-  def window(timeValue: Long,
-             timeUnit: TimeUnit = TimeUnit.SECONDS,
-             resolutionValue: Long = 50,
-             resolutionTimeUnit: TimeUnit = TimeUnit.MILLISECONDS) =
-    timeUnit.toMillis(timeValue) / resolutionTimeUnit.toMillis(resolutionValue)
 
   /**
     * Do padding left and right side of the sequence with the given element.
@@ -105,20 +105,20 @@ class MajorityVoteTripCleaning(window: Window, iterations: Int = 1, step: Int = 
     (bestMode, probability, anchorElt._3)
   }
 
-//  def singleCleanStepBatched(trip: Trip,
-//                      modes: Seq[(String, Double, Timestamp)],
-//                      modeProbabilities: ModeProbabilities): (Trip, Seq[(String, Double, Timestamp)]) = {
-//    // add dummy elements to begin and end of the list of modes
-//    val extendedModes = padding(modes, dummyElement)
-//
-//    // sliding window and keep majority
-//    val cleanedModes = extendedModes
-//      .sliding(window, step = window)    // n elements before + the current element + n elements after
-//      .map(majorityBatch) // majority voting, but timestamp taken from middle element
-//      .toSeq
-//
-//
-//  }
+  def singleCleanStepBatched(trip: Trip,
+                      modes: Seq[(String, Double, Timestamp)],
+                      modeProbabilities: ModeProbabilities): (Trip, Seq[(String, Double, Timestamp)]) = {
+    // add dummy elements to begin and end of the list of modes
+    val extendedModes = padding(modes, dummyElement)
+
+    // sliding window and keep majority
+    val cleanedModes = extendedModes
+      .sliding(window.numEntries, step = window.numEntries)    // n elements before + the current element + n elements after
+      .map(majorityBatch) // majority voting, but timestamp taken from middle element
+      .toSeq
+
+    (trip, cleanedModes.flatten)
+  }
 
   private def majorityBatch(values: Seq[(String, Double, Timestamp)]): Seq[(String, Double, Timestamp)] = {
 

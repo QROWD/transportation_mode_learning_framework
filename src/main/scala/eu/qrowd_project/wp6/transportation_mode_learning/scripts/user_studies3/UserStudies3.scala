@@ -355,9 +355,8 @@ object UserStudies3
           val stages = runModeDetection(user, trip, filteredAccelerometerData, tripIdx, config)
 
           // perform the map matching
-          stages.foreach{ stage =>
+          stages.foreach { stage =>
             val mappedTrajectory = mapMatching(stage.trajectory, stage.mode)
-                .get.getRoutes.get(0).getPoints.asScala.map(wp => new TrackPoint(wp.getLatitude.toDegrees, wp.getLongitude.toDegrees, null))
 
             stage.mappedTrajectory = mappedTrajectory;
           }
@@ -371,11 +370,20 @@ object UserStudies3
 
   val mapMatcherURL = appConfig.getString("map_matching.url")
   val mapMatcher = new GraphhopperMapMatcherHttp(mapMatcherURL)
-  private def mapMatching(trajectory: Seq[TrackPoint], mode: String) = {
+  private def mapMatching(trajectory: Seq[TrackPoint], mode: String):Seq[TrackPoint] = {
 
     val matchedTrip = mapMatcher.query(trajectory)
 
-    matchedTrip
+    // convert GPX to trajectory
+    if(matchedTrip.nonEmpty) {
+      matchedTrip.get
+        .getRoutes.get(0).getPoints.asScala.map(wp =>
+        new TrackPoint(wp.getLatitude.toDegrees,
+          wp.getLongitude.toDegrees,
+          null))
+    } else {
+      trajectory
+    }
   }
 
   private def compress[A](l: List[A], fn: (A, A) => Boolean):List[A] = l.foldLeft(List[A]()) {
