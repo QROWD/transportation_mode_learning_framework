@@ -13,11 +13,10 @@ import scala.collection.immutable
 
 import com.typesafe.config.ConfigFactory
 import eu.qrowd_project.wp6.transportation_mode_learning.Predict
-import eu.qrowd_project.wp6.transportation_mode_learning.mapmatching.GraphhopperMapMatcherHttp
+import eu.qrowd_project.wp6.transportation_mode_learning.mapmatching.{GraphhopperMapMatcherHttp, GraphhopperPublicTransitMapMatcherHttp}
 import eu.qrowd_project.wp6.transportation_mode_learning.scripts.{ClusterTrip, Trip, TripDetection, WindowDistanceTripDetection}
 import eu.qrowd_project.wp6.transportation_mode_learning.util._
 import scopt.Read
-
 import scala.collection.JavaConverters._
 
 object UserStudies3
@@ -182,26 +181,33 @@ object UserStudies3
     val transitionPointsWithMode: List[(TrackPoint, String)] = computeTransitionPoints(trip, modesWProbAndTimeStamp.toList)
     Files.write(Paths.get(s"/tmp/${userID}_transition_points_trip$tripIdx.out"), transitionPointsWithMode.mkString("\n").getBytes(Charset.forName("UTF-8")))
 
-    transitionPointsWithMode.sliding(2).map(pointsWMode => {
-      if (pointsWMode.size > 1) {
+    (transitionPointsWithMode ++ Seq((trip.end, "dummy"))) // add a dummy element to the end to process last element
+      .sliding(2)
+      .zipWithIndex
+      .map(pointsWModeWithIdx => {
+        val pointsWMode = pointsWModeWithIdx._1
         val startPoint: TrackPoint = pointsWMode(0)._1
-        val stopPoint: TrackPoint = pointsWMode(1)._1
+
+        val stopPoint = if (pointsWMode.size > 1) {
+          pointsWMode(1)._1
+        } else {
+          // just one transition point means just one mode was used for the whole trip
+          // or we're in the last stage, thus we take the end of the whole trip as stop point
+          trip.end
+        }
         val mode: String = pointsWMode(0)._2
-        buildStage(userID, startPoint, stopPoint, mode, trip)
-      } else {
-        // just one transition point means just one mode was used for the whole trip
-        // or we're in the last stage
-        val startPoint: TrackPoint = pointsWMode(0)._1
-        val mode: String = pointsWMode(0)._2
-        buildStage(userID, startPoint, trip.end, mode, trip)
-      }
-    }).toList
+        buildStage(s"$tripIdx.${pointsWModeWithIdx._2}", userID, startPoint, stopPoint, mode, trip)
+      })
+      .toList
   }
 
-  private def buildStage(userID: UserID,
+  private def buildStage(stageID: String,
+                         userID: UserID,
                          start: TrackPoint,
                          stop: TrackPoint,
-                         mode: String, overallTrip: Trip): UserStudies3Stage = {
+                         mode: String,
+                         overallTrip: Trip): UserStudies3Stage = {
+    // extract the trackpoints from the trip
     var points: Seq[TrackPoint] = overallTrip.trace.filter(point => point.timestamp.after(start.timestamp) && point.timestamp.before(stop.timestamp))
 
     // add start and end
@@ -211,7 +217,7 @@ object UserStudies3
     val startAddress = getStreet(start.long, start.lat)
     val stopAddress = getStreet(stop.long, start.lat)
 
-    UserStudies3Stage(userID, mode, start, startAddress, stop, stopAddress, trajectory = points)
+    UserStudies3Stage(stageID, userID, mode, start, startAddress, stop, stopAddress, trajectory = points)
   }
 
   private def computeTransitionPoints(trip: Trip, bestModes: List[(String, Double, Timestamp)]) = {
@@ -339,12 +345,14 @@ object UserStudies3
 
     // perform mode detection for each user
     users.foreach( user => {
+      println(s"user $user")
       // get the accelerometer data from Cassandra DB
       val fullDayAccelerometerData = cassandra.getAccDataForUserAndDay(user, config.date.format(formatter))
 
       // for each trip
       trips(user).zipWithIndex.foreach(
         userWithTripIdx => {
+          println(s"### trip ${userWithTripIdx._2} ###")
           val trip = userWithTripIdx._1._2
           val tripIdx: Int = userWithTripIdx._2
 
@@ -355,7 +363,9 @@ object UserStudies3
           val stages = runModeDetection(user, trip, filteredAccelerometerData, tripIdx, config)
 
           // perform the map matching
-          stages.foreach { stage =>
+          stages.zipWithIndex.foreach { stageWithIdx =>
+            println(s"##### stage  ${stageWithIdx._1.toString} ######")
+            val stage = stageWithIdx._1
             val mappedTrajectory = mapMatching(stage.trajectory, stage.mode)
 
             stage.mappedTrajectory = mappedTrajectory;
@@ -368,19 +378,24 @@ object UserStudies3
     })
   }
 
-  val mapMatcherURL = appConfig.getString("map_matching.url")
+  val mapMatcherURL = appConfig.getString("map_matching.graphhopper.map_matching_url")
+  val mapMatcherPublicTransitURL = appConfig.getString("map_matching.graphhopper.routing_url")
   val mapMatcher = new GraphhopperMapMatcherHttp(mapMatcherURL)
-  private def mapMatching(trajectory: Seq[TrackPoint], mode: String):Seq[TrackPoint] = {
+  val mapMatcherPublicTransit = new GraphhopperPublicTransitMapMatcherHttp(mapMatcherPublicTransitURL)
 
-    val matchedTrip = mapMatcher.query(trajectory)
+  private def mapMatching(trajectory: Seq[TrackPoint], mode: String): Seq[TrackPoint] = {
+
+    // do map matching in case of "train" via routing API of GraphHopper - might fail ...
+    val matchedTrip =
+      if(mode == "train") {
+      mapMatcherPublicTransit.query(trajectory, Some(mode))
+    } else {
+      mapMatcher.query(trajectory)
+    }
 
     // convert GPX to trajectory
-    if(matchedTrip.nonEmpty) {
-      matchedTrip.get
-        .getRoutes.get(0).getPoints.asScala.map(wp =>
-        new TrackPoint(wp.getLatitude.toDegrees,
-          wp.getLongitude.toDegrees,
-          null))
+    if (matchedTrip.nonEmpty) {
+      GPXConverter.fromGPX(matchedTrip.get)
     } else {
       trajectory
     }
@@ -404,8 +419,8 @@ object UserStudies3
   implicit val dateRead: Read[LocalDate] =
     reads(x => LocalDate.parse(x, DateTimeFormatter.ofPattern("yyyyMMdd", Locale.ENGLISH)))
 
-  private val parser = new scopt.OptionParser[Config]("ModeDetection") {
-    head("ModeDetection", "0.1.0")
+  private val parser = new scopt.OptionParser[Config]("UserStudies3") {
+    head("UserStudies3", "0.1.0")
 
     opt[LocalDate]('d', "date")
       //      .required()

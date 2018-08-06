@@ -27,6 +27,7 @@ class GraphhopperMapMatcherHttp(val url: String) extends GraphhopperMapMatchingS
   def query(trajectory: Seq[TrackPoint]): Option[GPX] = request(GPXConverter.toGPXString(trajectory))
 
   private def request(data: String): Option[GPX] = {
+    logger.debug(s"GPX request data:$data")
     Try(
       Http(url)
         .param("type", "gpx")

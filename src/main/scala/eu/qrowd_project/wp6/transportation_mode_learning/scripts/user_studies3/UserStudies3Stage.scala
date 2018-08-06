@@ -34,10 +34,11 @@ import eu.qrowd_project.wp6.transportation_mode_learning.util.TrackPoint
   *                     timestamp) representing the stop point of a stage
   * @param stopAddress  Contains the address of the stop point
   */
-case class UserStudies3Stage(userID: String,
+case class UserStudies3Stage(stageID: String,
+                             userID: String,
                              mode: String,
                              start: TrackPoint, startAddress: String,
-                             stop: TrackPoint, stopAddress: String,
+                             var stop: TrackPoint, stopAddress: String,
                              segmentConfidence: Double = Double.NaN,
                              modeConfidence: Double = Double.NaN,
                              trajectory: Seq[TrackPoint],
@@ -45,4 +46,6 @@ case class UserStudies3Stage(userID: String,
                              parentTrip: Option[Int] = None
                             ) {
   val tripID: Int = (((5 * start.lat) * (7 * start.long) * (11 * stop.lat) * (17 * stop.long)) % Int.MaxValue).toInt
+
+  override def toString: String = s"$stageID - ($mode) ${start.timestamp} - ${stop.timestamp}"
 }

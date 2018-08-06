@@ -8,7 +8,7 @@ trait SQLiteAccessUserStudies3 extends SQLiteAccess {
   def getCitizenCollectionMode(uid: String): String = {
     val queryStr = s"SELECT collection_mode FROM citizen WHERE citizen_id='$uid';"
 
-    logger.info(s"Running query\n$queryStr")
+    logger.debug(s"Running query\n$queryStr")
     val res = runQuery(queryStr)
 
     if (res.next()) {
@@ -50,7 +50,7 @@ trait SQLiteAccessUserStudies3 extends SQLiteAccess {
          |);
        """.stripMargin
 
-    logger.info(s"Running query\n$queryStr")
+    logger.debug(s"Running query\n$queryStr")
     connection.createStatement().execute(queryStr)
   }
 
