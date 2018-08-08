@@ -16,8 +16,14 @@ import io.jenetics.jpx.GPX
   * Communicate with the Graphhopper server via HTTP.
   *
   * @param url the service URL for the map matching API, e.g. `http://localhost:8989/match`
+  * @param connTimeoutMs The socket connection timeout in milliseconds. Default is 1000
+  * @param readTimeOutMs The socket read timeout in milliseconds. Default is 5000
   */
-class GraphhopperMapMatcherHttp(val url: String) extends GraphhopperMapMatchingService {
+class GraphhopperMapMatcherHttp(val url: String,
+                                val connTimeoutMs: Int = 1000,
+                                val readTimeOutMs: Int = 5000)
+  extends GraphhopperMapMatchingService {
+
   val logger = com.typesafe.scalalogging.Logger("Graphhopper Map Matcher")
 
   private lazy val httpClient = HttpClientBuilder.create().build()
@@ -28,11 +34,12 @@ class GraphhopperMapMatcherHttp(val url: String) extends GraphhopperMapMatchingS
 
   private def request(data: String): Option[GPX] = {
     logger.debug(s"GPX request data:$data")
-    Try(
+    val res = Try(
       Http(url)
         .param("type", "gpx")
         .postData(data)
         .header("Content-Type", "application/gpx+xml")
+        .timeout(connTimeoutMs, readTimeOutMs)
         .execute(is => {
           TryWith(new BufferedReader(new InputStreamReader(is))) { br =>
             br.lines.collect(Collectors.joining("\n"))
@@ -42,7 +49,17 @@ class GraphhopperMapMatcherHttp(val url: String) extends GraphhopperMapMatchingS
         .map(s => TryWith(new ByteArrayInputStream(s.getBytes)) {is =>
           GPX.read(is)
         }.toOption.get)
-    ).get
+    )
+
+    if(res.isSuccess) {
+      val gpx = res.get.get
+      if(gpx.getRoutes.isEmpty) {
+        logger.warn(s"no matched route found for input data $data")
+      }
+      res.get
+    } else {
+      throw new RuntimeException(s"Error: Failed to perform map matching with input $data", res.failed.get)
+    }
   }
 
   def shutdown(): Unit = {

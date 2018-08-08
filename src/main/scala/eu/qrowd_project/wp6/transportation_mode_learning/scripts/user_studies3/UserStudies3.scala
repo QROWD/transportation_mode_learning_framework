@@ -18,6 +18,7 @@ import eu.qrowd_project.wp6.transportation_mode_learning.scripts.{ClusterTrip, T
 import eu.qrowd_project.wp6.transportation_mode_learning.util._
 import scopt.Read
 import scala.collection.JavaConverters._
+import scala.util.Try
 
 object UserStudies3
   extends SQLiteAccessUserStudies3
@@ -316,7 +317,7 @@ object UserStudies3
     val startEndWithModeCompressed = compress(startEndWithMode.toList, f2)
 
     startEndWithModeCompressed.map {
-      case (t1, t2, mode) => (t1, mode)
+      case (t1, t2, mode) => (t1, mode) // drop second trackpoint
     }
   }
 
@@ -345,19 +346,21 @@ object UserStudies3
 
     // perform mode detection for each user
     users.foreach( user => {
-      println(s"user $user")
+      logger.info(s"user $user")
       // get the accelerometer data from Cassandra DB
       val fullDayAccelerometerData = cassandra.getAccDataForUserAndDay(user, config.date.format(formatter))
+      logger.info(s"total accelerometer data = ${fullDayAccelerometerData.size}")
 
       // for each trip
       trips(user).zipWithIndex.foreach(
         userWithTripIdx => {
-          println(s"### trip ${userWithTripIdx._2} ###")
+          logger.info(s"### trip ${userWithTripIdx._2} ###")
           val trip = userWithTripIdx._1._2
           val tripIdx: Int = userWithTripIdx._2
 
           // extract the accelerometer data in the time range of the current trip
           val filteredAccelerometerData = filter(fullDayAccelerometerData, trip.start.timestamp, trip.end.timestamp)
+          logger.info(s"#accelerometer data = ${filteredAccelerometerData.size}")
 
           // run the mode detection
           val stages = runModeDetection(user, trip, filteredAccelerometerData, tripIdx, config)
@@ -383,9 +386,15 @@ object UserStudies3
   val mapMatcher = new GraphhopperMapMatcherHttp(mapMatcherURL)
   val mapMatcherPublicTransit = new GraphhopperPublicTransitMapMatcherHttp(mapMatcherPublicTransitURL)
 
+  /**
+    * perform the map matching here
+    *
+    * we distinguish between public transit (bus, train) and others
+    *
+    */
   private def mapMatching(trajectory: Seq[TrackPoint], mode: String): Seq[TrackPoint] = {
 
-    // do map matching in case of "train" via routing API of GraphHopper - might fail ...
+    // do map matching in case of "train" via routing API of GraphHopper - might fail ... //TODO fallback?
     val matchedTrip =
       if(mode == "train") {
       mapMatcherPublicTransit.query(trajectory, Some(mode))
@@ -395,7 +404,9 @@ object UserStudies3
 
     // convert GPX to trajectory
     if (matchedTrip.nonEmpty) {
-      GPXConverter.fromGPX(matchedTrip.get)
+      // the conversion will fail if there is no matched route in the GPX, in that case we simply return
+      // the trajectory itself
+      Try(GPXConverter.fromGPX(matchedTrip.get)) getOrElse(trajectory)
     } else {
       trajectory
     }
