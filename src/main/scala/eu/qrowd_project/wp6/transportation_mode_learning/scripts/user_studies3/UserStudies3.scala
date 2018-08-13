@@ -362,6 +362,8 @@ object UserStudies3
           val filteredAccelerometerData = filter(fullDayAccelerometerData, trip.start.timestamp, trip.end.timestamp)
           logger.info(s"#accelerometer data = ${filteredAccelerometerData.size}")
 
+          activitySegmentation(filteredAccelerometerData)
+
           // run the mode detection
           val stages = runModeDetection(user, trip, filteredAccelerometerData, tripIdx, config)
 
@@ -379,6 +381,24 @@ object UserStudies3
         }
       )
     })
+  }
+
+  import java.lang.Math.{pow, sqrt}
+  // sqrt(x^2 + y^2 + z^2)
+  val euclidianLength = (rec: AccelerometerRecord) => {sqrt(pow(rec.x, 2) + pow(rec.y, 2) + pow(rec.z, 2))}
+  val euclidianLengthOfSeq = (records: Seq[AccelerometerRecord]) => {records.map(euclidianLength).sum / records.size}
+
+  private def activitySegmentation(accelerometerData: Seq[AccelerometerRecord]) = {
+    var t1 = accelerometerData.head.timestamp
+
+    // check the avg. acceleration for a period of t = 5s
+    val windows = accelerometerData.sliding(50)
+    val windowsWithAvgAcceleration = windows.map(w => (w, euclidianLengthOfSeq(w)))
+
+    windowsWithAvgAcceleration.foreach {
+      case (w, value) => println(s"${w.head.timestamp} - ${w.last.timestamp}: $value")
+    }
+
   }
 
   val mapMatcherURL = appConfig.getString("map_matching.graphhopper.map_matching_url")
