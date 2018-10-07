@@ -1,15 +1,14 @@
-package eu.qrowd_project.wp6.transportation_mode_learning.util
+package eu.qrowd_project.wp6.transportation_mode_learning.scripts.user_studies3
 
-import eu.qrowd_project.wp6.transportation_mode_learning.Pilot2Stage
+import eu.qrowd_project.wp6.transportation_mode_learning.util.{Point, SQLiteAccess, TrackPoint}
 
-trait SQLiteAccess2ndPilot extends SQLiteAccess {
-
+trait SQLiteAccessUserStudies3 extends SQLiteAccess {
   private val logger = com.typesafe.scalalogging.Logger("SQLite DB Writer")
 
   def getCitizenCollectionMode(uid: String): String = {
     val queryStr = s"SELECT collection_mode FROM citizen WHERE citizen_id='$uid';"
 
-    logger.info("Running query\n" + queryStr)
+    logger.debug(s"Running query\n$queryStr")
     val res = runQuery(queryStr)
 
     if (res.next()) {
@@ -19,9 +18,10 @@ trait SQLiteAccess2ndPilot extends SQLiteAccess {
     }
   }
 
-  def writeTripInfo(trip: Pilot2Stage): Unit = {
+  def writeTripInfo(trip: UserStudies3Stage): Unit = {
     val wholeTrajectory = Seq(trip.start) ++ trip.trajectory ++ Seq(trip.stop)
-    val jsonPointsStr = s"[ " + wholeTrajectory.map(p => s"[${p.long},${p.lat}]").mkString(", ") + " ]"
+    val jsonPointsStr = asJSonArray(wholeTrajectory)
+    val jsonMappedPointsStr = asJSonArray(trip.mappedTrajectory)
     val queryStr =
       s"""
          |INSERT INTO trip(
@@ -33,7 +33,8 @@ trait SQLiteAccess2ndPilot extends SQLiteAccess {
          |  stop_timestamp,
          |  stop_address,
          |  transportation_mode,
-         |  path
+         |  path,
+         |  path_mapped
          |)
          |VALUES (
          |  '${trip.userID}',
@@ -44,11 +45,16 @@ trait SQLiteAccess2ndPilot extends SQLiteAccess {
          |  '${trip.stop.timestamp.toLocalDateTime.format(dateTimeFormatter)}',
          |  '${trip.stopAddress.replace("'", "")}',
          |  '${trip.mode}',
-         |  '$jsonPointsStr'
+         |  '$jsonPointsStr',
+         |  '$jsonMappedPointsStr'
          |);
        """.stripMargin
 
-    logger.info("Running query\n" + queryStr)
+    logger.debug(s"Running query\n$queryStr")
     connection.createStatement().execute(queryStr)
+  }
+
+  private def asJSonArray[T <: Point](points: Seq[T]): String = {
+    s"[ " + points.map(p => s"[${p.long},${p.lat}]").mkString(", ") + " ]"
   }
 }

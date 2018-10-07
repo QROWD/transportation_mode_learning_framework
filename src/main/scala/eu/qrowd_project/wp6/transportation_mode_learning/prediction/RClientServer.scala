@@ -45,7 +45,8 @@ class RClientServer(
     logger.info("stopped R server.")
   }
 
-  override def predict(accelerometerData: Seq[(Double, Double, Double, Timestamp)]): ModeProbabilities = {
+  override def predict(accelerometerData: Seq[(Double, Double, Double, Timestamp)],
+                       id: String = ""): ModeProbabilities = {
     logger.info("prediction call...")
     // write data as CSV to disk
     val inputFile = serializeInput(accelerometerData)

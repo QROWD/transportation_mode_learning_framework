@@ -15,6 +15,7 @@ class AutoReconnectingCassandraDBConnector
     // cluster wasn't set up, yet, or closed already
     if (!_clusterInitialized || _cluster.isClosed) {
       logger.info("setting up Cassandra cluster...")
+
       var clusterSetUpSuccessfully = false
 
       while (!clusterSetUpSuccessfully) {
@@ -106,5 +107,24 @@ class AutoReconnectingCassandraDBConnector
       logger.info("stopping Cassandra cluster ...")
       arCluster.close()
     }
+  }
+}
+
+object AutoReconnectingCassandraDBConnector {
+
+  def apply(): CassandraDBConnector = new AutoReconnectingCassandraDBConnector()
+
+  def apply(userIDs: Seq[String]): CassandraDBConnector = {
+    val db = new AutoReconnectingCassandraDBConnector()
+    db.userIds = userIDs
+    db
+  }
+
+
+  def main(args: Array[String]): Unit = {
+    val cassandra = AutoReconnectingCassandraDBConnector()
+    val data = cassandra.readData("20180330")
+    println(data.size)
+    cassandra.close()
   }
 }
