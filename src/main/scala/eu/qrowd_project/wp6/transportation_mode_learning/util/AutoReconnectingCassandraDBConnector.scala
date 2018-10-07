@@ -10,10 +10,10 @@ import com.datastax.driver.core.{Cluster, Session, SocketOptions}
 class AutoReconnectingCassandraDBConnector
   extends CassandraDBConnector {
 
-  override lazy val cluster: Cluster = {
-    var _cluster: Cluster = null
+  private var _cluster: Cluster = _
+  def arCluster: Cluster = {
     // cluster wasn't set up, yet, or closed already
-    if (!_clusterInitialized || cluster.isClosed) {
+    if (!_clusterInitialized || _cluster.isClosed) {
       logger.info("setting up Cassandra cluster...")
       var clusterSetUpSuccessfully = false
 
@@ -31,10 +31,17 @@ class AutoReconnectingCassandraDBConnector
     _cluster
   }
 
-  override lazy val session: Session = {
-    var _session: Session = null
+  private var _session: Session = _
+
+  override def _initSession: Session = {
+    val session = _cluster.connect
+    _sessionInitialized = true
+    session
+  }
+
+  def arSession: Session = {
     // session wasn't set up, yet or closed already
-    if (!_sessionInitialized) {
+    if (!_sessionInitialized || _session.isClosed) {
       logger.info("setting up Cassandra session...")
       var sessionSetUpSuccessfully = false
 
@@ -60,8 +67,8 @@ class AutoReconnectingCassandraDBConnector
 
     while (!dataReadSuccessfully) {
       try {
-        val keyspaces = cluster.getMetadata.getKeyspaces
-        res = runQuery(keyspaces, session, day, accuracyThreshold)
+        val keyspaces = arCluster.getMetadata.getKeyspaces
+        res = runQuery(keyspaces, arSession, day, accuracyThreshold)
 //        res = readData(day, accuracyThreshold, userID)
         dataReadSuccessfully = true
       } catch {
@@ -73,14 +80,31 @@ class AutoReconnectingCassandraDBConnector
     res
   }
 
-  override def close(): Unit = {
-    if(session != null && !session.isClosed) {
-      logger.info("stopping Cassandra session ...")
-      session.close()
+  def getAccDataForUserAndDay(userID: String, day: String): Seq[AccelerometerRecord] = {
+    var dataReadSuccessfully = false
+    var res = Seq.empty[AccelerometerRecord]
+    while (!dataReadSuccessfully) {
+      try {
+        res = super.getAccDataForUserAndDay(userID, day, _session)
+        dataReadSuccessfully = true
+      } catch {
+        case t: Throwable =>
+          logger.error("Failed to read data from Cassandra. Retrying....", t)
+      }
     }
-    if(cluster != null && !cluster.isClosed) {
+
+    res
+  }
+
+
+  override def close(): Unit = {
+    if(arSession != null && !arSession.isClosed) {
+      logger.info("stopping Cassandra session ...")
+      arSession.close()
+    }
+    if(arCluster != null && !arCluster.isClosed) {
       logger.info("stopping Cassandra cluster ...")
-      cluster.close()
+      arCluster.close()
     }
   }
 }
