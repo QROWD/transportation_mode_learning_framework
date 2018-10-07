@@ -10,14 +10,27 @@ import scala.collection.mutable
 /**
   * Created by patrick on 4/7/18.
   */
-class WindowDistanceTripDetection(windowSize: Int, stepSize: Int,
-                                  distanceThresholdInKm: Double,
-                                  minNrOfSegments: Int,
-                                  noiseSegments: Int) {
+class WindowDistanceBasedTripDetection(windowSize: Int, stepSize: Int,
+                                       distanceThresholdInKm: Double,
+                                       minNrOfSegments: Int,
+                                       noiseSegments: Int) extends TripDetection {
   val logger = com.typesafe.scalalogging.Logger("WindowDistanceTripDetection")
   val secsPerDay: Int = 60 * 60 * 24
 
-  def find(trajectory: Seq[TrackPoint]): Seq[Trip] = {
+  def secsOfDayToDate(secs: Int): LocalDateTime = {
+    var secsOfDay = secs
+    val year = 2018
+    val month = 6
+    val day = 3
+    val hour = Math.abs(secsOfDay / 60 / 60)
+    secsOfDay -= hour * 60 * 60
+    val min = Math.abs(secsOfDay / 60)
+    secsOfDay -= min * 60
+
+    LocalDateTime.of(year, month, day, hour, min, secsOfDay)
+  }
+
+  override def find(trajectory: Seq[TrackPoint]): Seq[Trip] = {
     if(trajectory.isEmpty) {
       logger.warn("could not perform trip detection: empty trajectory")
       return Seq()
@@ -61,12 +74,37 @@ class WindowDistanceTripDetection(windowSize: Int, stepSize: Int,
       }
     }
 
+    val keys: List[Int] = windows.keys.toList.sorted
+
+    keys.foreach(k => {
+//    windows.foreach(win => {
+      val window = windows(k)
+      val startDate: LocalDateTime = secsOfDayToDate(k)
+      val stopDate: LocalDateTime = secsOfDayToDate(k + windowSize)
+      println("------------------------------------------")
+      println(s"Considering time window from ${startDate.toString} to ${stopDate.toString}")
+
+      if (window != null) {
+        val startPoint = window._1
+        val stopPoint = window._2
+        println(s"Start point of this window is ${startPoint.toString}")
+        println(s"Stop point of this window is ${stopPoint.toString}")
+
+        println(s"The distance between both points is ${HaversineDistance.compute(startPoint, stopPoint)}")
+        println(s"This is greater than the distance threshold of $distanceThresholdInKm: " +
+          s"${HaversineDistance.compute(startPoint, stopPoint) >= distanceThresholdInKm}")
+      } else {
+        println(s"No points in this window")
+      }
+    })
+
     var windowStartPointsWithCategories: List[(TrackPoint, Boolean)] = windows.values
       .toList.distinct.filter(_ != null)
       .map(startEndPair => (
-        startEndPair._1,
-        HaversineDistance.compute(startEndPair._1, startEndPair._2) >= distanceThresholdInKm
-      ))
+          startEndPair._1,
+          HaversineDistance.compute(startEndPair._1, startEndPair._2) >= distanceThresholdInKm
+        )
+      )
 
     val availableCategoryPoints = windowStartPointsWithCategories.map(_._1)
 
@@ -150,9 +188,9 @@ class WindowDistanceTripDetection(windowSize: Int, stepSize: Int,
   }
 }
 
-object WindowDistanceTripDetection {
+object WindowDistanceBasedTripDetection {
   def main(args: Array[String]): Unit = {
-    val detector = new WindowDistanceTripDetection(300, 60, 0.17, 8, 5)
+    val detector = new WindowDistanceBasedTripDetection(300, 60, 0.17, 8, 5)
     detector.getSecondsOfDay(Timestamp.valueOf(LocalDateTime.now()))
   }
 }

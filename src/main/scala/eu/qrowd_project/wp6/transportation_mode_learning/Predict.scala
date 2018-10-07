@@ -356,7 +356,7 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
     logger.debug("splitting data into trips ...")
 
     // detect trips based on GPS data
-    val tripDetector = new WindowDistanceTripDetection(300, 60, 0.25, 5, 7)
+    val tripDetector = new WindowDistanceBasedTripDetection(300, 60, 0.25, 5, 7)
     val trips = tripDetector.find(gpsTrajectory)
     logger.debug(s"got ${trips.size} trips")
 

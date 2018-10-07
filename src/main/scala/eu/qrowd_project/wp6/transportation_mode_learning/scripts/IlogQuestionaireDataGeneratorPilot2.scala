@@ -25,8 +25,8 @@ object IlogQuestionaireDataGeneratorPilot2 extends JSONExporter with ParquetLoca
 
   private val appConfig = ConfigFactory.load()
 
-  private val tripDetector = new TripDetection()
-  private val fallbackTripDetector = new WindowDistanceTripDetection(
+  private val tripDetector = new ClusterBasedTripDetection()
+  private val fallbackTripDetector = new WindowDistanceBasedTripDetection(
     windowSize = appConfig.getInt("stop_detection.window_distance.window_size"),
     stepSize = appConfig.getInt("stop_detection.window_distance.step_size"),
     distanceThresholdInKm = appConfig.getDouble("stop_detection.window_distance.distance"),

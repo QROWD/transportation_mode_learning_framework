@@ -33,8 +33,8 @@ object ModePredictionPilot2 extends SQLiteAccess2ndPilot with OutlierDetecting w
     s"$rScriptPath/model.rds")
 //    .withServerMode()
 
-  private val tripDetector = new TripDetection()
-  private val fallbackTripDetector = new WindowDistanceTripDetection(
+  private val tripDetector = new ClusterBasedTripDetection()
+  private val fallbackTripDetector = new WindowDistanceBasedTripDetection(
     windowSize = appConfig.getInt("stop_detection.window_distance.window_size"),
     stepSize = appConfig.getInt("stop_detection.window_distance.step_size"),
     distanceThresholdInKm = appConfig.getDouble("stop_detection.window_distance.distance"),
