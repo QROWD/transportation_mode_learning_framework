@@ -30,9 +30,11 @@ class CassandraDBConnector(var userIds: Seq[String] = Seq()) {
   lazy val config = ConfigFactory.parseFile(new File(getClass.getClassLoader.getResource("cassandra.conf").toURI))
 
   // FIXME: copied over from LocationEventRecord
-  private val dateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
+  //                                                           20180530073346961
+  private val dateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmssnnnnnnnnn")
   def asTimestamp(timestamp :String): Timestamp =
-    Timestamp.valueOf(LocalDateTime.parse(timestamp.substring(0, 14), dateTimeFormatter))
+      Timestamp.valueOf(LocalDateTime.parse(timestamp + "000000", dateTimeFormatter))
+//    Timestamp.valueOf(LocalDateTime.parse(timestamp.substring(0, 14), dateTimeFormatter))
 
   lazy val cluster: Cluster = {
     logger.info("setting up Cassandra cluster...")
@@ -49,8 +51,8 @@ class CassandraDBConnector(var userIds: Seq[String] = Seq()) {
         config.getString("connection.credentials.password"))
       .withMaxSchemaAgreementWaitSeconds(60)
       .withSocketOptions(new SocketOptions()
-        .setConnectTimeoutMillis(30000)
-        .setReadTimeoutMillis(30000))
+        .setConnectTimeoutMillis(60000)
+        .setReadTimeoutMillis(60000))
       .build
     val cluster = builder.build
     _clusterInitialized = true
