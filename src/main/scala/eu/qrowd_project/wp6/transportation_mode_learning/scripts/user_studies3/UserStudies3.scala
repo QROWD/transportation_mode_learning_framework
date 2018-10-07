@@ -10,13 +10,13 @@ import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 import scala.collection.immutable
-
 import com.typesafe.config.ConfigFactory
 import eu.qrowd_project.wp6.transportation_mode_learning.Predict
 import eu.qrowd_project.wp6.transportation_mode_learning.mapmatching.{GraphhopperMapMatcherHttp, GraphhopperPublicTransitMapMatcherHttp}
-import eu.qrowd_project.wp6.transportation_mode_learning.scripts.{ClusterTrip, Trip, TripDetection, WindowDistanceTripDetection}
+import eu.qrowd_project.wp6.transportation_mode_learning.scripts.{ClusterTrip, Trip, TripDetection, WindowDistanceBasedTripDetection}
 import eu.qrowd_project.wp6.transportation_mode_learning.util._
 import scopt.Read
+
 import scala.collection.JavaConverters._
 import scala.util.Try
 
@@ -45,7 +45,7 @@ object UserStudies3
 //    .withServerMode()
 
   private val tripDetector = new TripDetection()
-  private val fallbackTripDetector = new WindowDistanceTripDetection(
+  private val fallbackTripDetector = new WindowDistanceBasedTripDetection(
     windowSize = appConfig.getInt("stop_detection.window_distance.window_size"),
     stepSize = appConfig.getInt("stop_detection.window_distance.step_size"),
     distanceThresholdInKm = appConfig.getDouble("stop_detection.window_distance.distance"),

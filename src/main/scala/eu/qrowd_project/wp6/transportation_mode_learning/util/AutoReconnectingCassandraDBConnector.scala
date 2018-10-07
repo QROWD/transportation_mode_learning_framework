@@ -86,7 +86,7 @@ class AutoReconnectingCassandraDBConnector
     var res = Seq.empty[AccelerometerRecord]
     while (!dataReadSuccessfully) {
       try {
-        res = super.getAccDataForUserAndDay(userID, day, _session)
+        res = super.getAccDataForUserAndDay(userID, day, arSession)
         dataReadSuccessfully = true
       } catch {
         case t: Throwable =>

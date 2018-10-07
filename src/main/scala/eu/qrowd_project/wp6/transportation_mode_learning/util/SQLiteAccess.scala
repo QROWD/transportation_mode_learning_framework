@@ -3,8 +3,8 @@ package eu.qrowd_project.wp6.transportation_mode_learning.util
 import java.sql.{Connection, DriverManager, ResultSet}
 import java.time.format.DateTimeFormatter
 
-import scalikejdbc.ConnectionPool
-import scalikejdbc._
+//import scalikejdbc.ConnectionPool
+//import scalikejdbc._
 
 trait SQLiteAccess {
 
@@ -20,20 +20,24 @@ trait SQLiteAccess {
   }
 
   def close(): Unit = {
-    ConnectionPool.closeAll()
+//    ConnectionPool.closeAll()
   }
 
-  implicit val session = AutoSession
+//  implicit val session = AutoSession
   def runQuery(queryStr: String): ResultSet = {
     connection.createStatement().executeQuery(queryStr)
   }
 
   def insert(query: String): Int = {
-    sql"$query".executeUpdate().apply()
+//    sql"$query".executeUpdate().apply()
+    // FIXME
+    0
   }
 
   def select(query: String) = {
-    sql"$query".map(rs => rs.int(0)).first.apply()
+//    sql"$query".map(rs => rs.int(0)).first.apply()
+    // FIXME
+    0
   }
 
   val dateTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("YYYY-MM-dd HH:mm:ss")

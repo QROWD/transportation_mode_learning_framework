@@ -58,10 +58,11 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
 
   var debug: Boolean = true
   var debugOutputDir: Path = Paths.get(System.getProperty("java.io.tmpdir"))
-
   private val dateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
+
   def asTimestamp(timestamp: String): Timestamp =
-    Timestamp.valueOf(LocalDateTime.parse(timestamp.substring(0, 14), dateTimeFormatter))
+    Timestamp.valueOf(
+      LocalDateTime.parse(timestamp.substring(0, 14), dateTimeFormatter))
 
   def predict(trip: Trip,
               accRecords: Seq[AccelerometerRecord],
@@ -98,21 +99,20 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
           GeoJSONConverter.toGeoJSONPoints(trip.trace),
           GeoJSONConverter.toGeoJSONLineString(trip.trace)),
         debugOutputDir.resolve(
-          s"${user}_trip${tripIdx}_lines_with_points.json").toString)
+          s"trip${tripIdx}_lines_with_points.json").toString)
 
         // raw best modes
         Files.write(
-          debugOutputDir.resolve(s"${user}_trip${tripIdx}_best_modes.out"),
+          debugOutputDir.resolve(s"trip${tripIdx}_best_modes.out"),
           bestModes.mkString("\n").getBytes(Charset.forName("UTF-8")))
 
 
         Files.write(
-          debugOutputDir.resolve(s"${user}_trip${tripIdx}_best_modes_cleaned.out"),
+          debugOutputDir.resolve(s"trip${tripIdx}_best_modes_cleaned.out"),
           cleanedBestModes.mkString("\n").getBytes(Charset.forName("UTF-8")))
 
         // GeoJson with modes highlighted
-//        visualizeModes(trip, bestModes, tripIdx)
-//        visualizeModes(trip, cleanedBestModes.toList, tripIdx, fileSuffix = "_cleaned")
+        visualizeModes(trip, cleanedBestModes.toList, tripIdx, fileSuffix = "_cleaned")
       }
 
 //    rClient.stop()

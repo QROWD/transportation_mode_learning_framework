@@ -90,8 +90,10 @@ object GeoJSONConverter {
 
     val props = Json.createObjectBuilder()
     if(entries.nonEmpty) {
-      props.add("timestamp-start", entries.head.timestamp.toString)
-        .add("timestamp-end", entries.last.timestamp.toString)
+      if (entries.head.timestamp != null) {
+        props.add("timestamp-start", entries.head.timestamp.toString)
+          .add("timestamp-end", entries.last.timestamp.toString)
+      }
     }
     properties.foreach(e => props.add(e._1, e._2))
 

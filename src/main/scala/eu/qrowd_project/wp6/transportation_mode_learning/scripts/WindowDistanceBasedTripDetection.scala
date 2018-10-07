@@ -76,27 +76,27 @@ class WindowDistanceBasedTripDetection(windowSize: Int, stepSize: Int,
 
     val keys: List[Int] = windows.keys.toList.sorted
 
-    keys.foreach(k => {
-//    windows.foreach(win => {
-      val window = windows(k)
-      val startDate: LocalDateTime = secsOfDayToDate(k)
-      val stopDate: LocalDateTime = secsOfDayToDate(k + windowSize)
-      println("------------------------------------------")
-      println(s"Considering time window from ${startDate.toString} to ${stopDate.toString}")
-
-      if (window != null) {
-        val startPoint = window._1
-        val stopPoint = window._2
-        println(s"Start point of this window is ${startPoint.toString}")
-        println(s"Stop point of this window is ${stopPoint.toString}")
-
-        println(s"The distance between both points is ${HaversineDistance.compute(startPoint, stopPoint)}")
-        println(s"This is greater than the distance threshold of $distanceThresholdInKm: " +
-          s"${HaversineDistance.compute(startPoint, stopPoint) >= distanceThresholdInKm}")
-      } else {
-        println(s"No points in this window")
-      }
-    })
+//    keys.foreach(k => {
+////    windows.foreach(win => {
+//      val window = windows(k)
+//      val startDate: LocalDateTime = secsOfDayToDate(k)
+//      val stopDate: LocalDateTime = secsOfDayToDate(k + windowSize)
+//      println("------------------------------------------")
+//      println(s"Considering time window from ${startDate.toString} to ${stopDate.toString}")
+//
+//      if (window != null) {
+//        val startPoint = window._1
+//        val stopPoint = window._2
+//        println(s"Start point of this window is ${startPoint.toString}")
+//        println(s"Stop point of this window is ${stopPoint.toString}")
+//
+//        println(s"The distance between both points is ${HaversineDistance.compute(startPoint, stopPoint)}")
+//        println(s"This is greater than the distance threshold of $distanceThresholdInKm: " +
+//          s"${HaversineDistance.compute(startPoint, stopPoint) >= distanceThresholdInKm}")
+//      } else {
+//        println(s"No points in this window")
+//      }
+//    })
 
     var windowStartPointsWithCategories: List[(TrackPoint, Boolean)] = windows.values
       .toList.distinct.filter(_ != null)
