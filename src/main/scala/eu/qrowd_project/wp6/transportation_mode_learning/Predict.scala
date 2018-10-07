@@ -2,14 +2,13 @@ package eu.qrowd_project.wp6.transportation_mode_learning
 
 import java.awt.Color
 import java.nio.charset.Charset
-import java.nio.file.{Files, Paths}
+import java.nio.file.{Files, Path, Paths}
 import java.sql.Timestamp
 import java.time.format.DateTimeFormatter
 import java.time.{Duration, LocalDateTime}
 import java.util.concurrent.TimeUnit
 
 import scala.collection.JavaConverters._
-
 import eu.qrowd_project.wp6.transportation_mode_learning.prediction._
 import eu.qrowd_project.wp6.transportation_mode_learning.scripts._
 import eu.qrowd_project.wp6.transportation_mode_learning.util._
@@ -58,6 +57,7 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
   )
 
   var debug: Boolean = true
+  var debugOutputDir: Path = Paths.get(System.getProperty("java.io.tmpdir"))
 
   private val dateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
   def asTimestamp(timestamp: String): Timestamp =
@@ -96,16 +96,17 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
         GeoJSONConverter.merge(
           GeoJSONConverter.toGeoJSONPoints(trip.trace),
           GeoJSONConverter.toGeoJSONLineString(trip.trace)),
-        s"/tmp/${user}_trip${tripIdx}_lines_with_points.json")
+        debugOutputDir.resolve(
+          s"${user}_trip${tripIdx}_lines_with_points.json").toString)
 
         // raw best modes
         Files.write(
-          Paths.get(s"/tmp/${user}_trip${tripIdx}_best_modes.out"),
+          debugOutputDir.resolve(s"${user}_trip${tripIdx}_best_modes.out"),
           bestModes.mkString("\n").getBytes(Charset.forName("UTF-8")))
 
 
         Files.write(
-          Paths.get(s"/tmp/${user}_trip${tripIdx}_best_modes_cleaned.out"),
+          debugOutputDir.resolve(s"${user}_trip${tripIdx}_best_modes_cleaned.out"),
           cleanedBestModes.mkString("\n").getBytes(Charset.forName("UTF-8")))
 
         // GeoJson with modes highlighted
@@ -147,17 +148,17 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
           GeoJSONConverter.merge(
             GeoJSONConverter.toGeoJSONPoints(trip.trace),
             GeoJSONConverter.toGeoJSONLineString(trip.trace)),
-          s"/tmp/trip${idx}_lines_with_points.json")
+          debugOutputDir.resolve(s"trip${idx}_lines_with_points.json").toString)
 
         // raw best modes
         Files.write(
-          Paths.get(s"/tmp/trip${idx}_best_modes.out"),
+          debugOutputDir.resolve(s"trip${idx}_best_modes.out"),
           bestModes.mkString("\n").getBytes(Charset.forName("UTF-8")))
 
         // cleaned best modes
         val cleanedBestModes = MajorityVoteTripCleaning(Window(100), iterations = 10).clean(trip, bestModes.map(_._1), modes)._2
         Files.write(
-          Paths.get(s"/tmp/trip${idx}_best_modes_cleaned.out"),
+          debugOutputDir.resolve(s"trip${idx}_best_modes_cleaned.out"),
           cleanedBestModes.mkString("\n").getBytes(Charset.forName("UTF-8")))
 
         // GeoJson with modes highlighted
@@ -195,7 +196,7 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
     // compress the data,
     // i.e. (mode1, mode1, mode1, mode2, mode2, mode1, mode3) -> (mode1, mode2, mode1, mode3)
     val compressedModes = compress(bestModes, f)
-    Files.write(Paths.get(s"/tmp/trip${idx}_compressed_modes$fileSuffix.out"), compressedModes.mkString("\n").getBytes)
+    Files.write(debugOutputDir.resolve(s"trip${idx}_compressed_modes$fileSuffix.out"), compressedModes.mkString("\n").getBytes)
 
     // pick some colors for each mode
 //    val colors = GeoJSONConverter.colors(6)
@@ -309,7 +310,10 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
     val json = GeoJSONConverter.merge(lineStringsJson :+ pointsJson)
 
     // write to disk
-    GeoJSONExporter.write(json, s"/tmp/trip${idx}_lines_with_points_modes_colored$fileSuffix.json")
+    GeoJSONExporter.write(
+      json,
+      debugOutputDir.resolve(
+        s"trip${idx}_lines_with_points_modes_colored$fileSuffix.json").toString)
   }
 
   private def propertiesFor(mode: String) =
