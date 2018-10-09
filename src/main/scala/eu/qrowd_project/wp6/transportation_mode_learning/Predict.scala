@@ -236,8 +236,30 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
 //          println("no mode")
           // this happens due to compression, just take the last known mode
           // TODO we might not have seen any mode before because i) it might be the first point at all and ii) the first in the trip split
-          val mode = compressedModes.filter(e => e._3.before(tp1.timestamp)).last
-          Seq(GeoJSONConverter.toGeoJSONLineString(Seq(tp1, tp2), propertiesFor(mode._1)))
+          val modes = compressedModes.filter(e => e._3.before(tp1.timestamp))
+          // FIXME: Just a quick fix for the trace below:
+          /*
+          Failed to process the ILog data.
+          java.util.NoSuchElementException
+                  at scala.collection.LinearSeqOptimized$class.last(LinearSeqOptimized.scala:148)
+                  at scala.collection.immutable.List.last(List.scala:84)
+                  at eu.qrowd_project.wp6.transportation_mode_learning.Predict$$anonfun$7.apply(Predict.scala:239)
+                  at eu.qrowd_project.wp6.transportation_mode_learning.Predict$$anonfun$7.apply(Predict.scala:209)
+                  at scala.collection.TraversableLike$$anonfun$flatMap$1.apply(TraversableLike.scala:241)
+                  at scala.collection.TraversableLike$$anonfun$flatMap$1.apply(TraversableLike.scala:241)
+                  at scala.collection.immutable.List.foreach(List.scala:392)
+                  at scala.collection.TraversableLike$class.flatMap(TraversableLike.scala:241)
+                  at scala.collection.immutable.List.flatMap(List.scala:355)
+                  at eu.qrowd_project.wp6.transportation_mode_learning.Predict.eu$qrowd_project$wp6$transportation_mode_learning$Predict$$visualizeModes(Predict.scala:209)
+                  at eu.qrowd_project.wp6.transportation_mode_learning.Predict.predict(Predict.scala:116)
+           */
+          if (modes.nonEmpty) {
+            val mode = modes.last
+            Seq(GeoJSONConverter.toGeoJSONLineString(Seq(tp1, tp2), propertiesFor(mode._1)))
+          } else {
+            Seq.empty
+          }
+
         } else if(modesBetween.size == 1) { // handle single mode change between both points
           // compute the split point
           val modeChange = modesBetween.head
