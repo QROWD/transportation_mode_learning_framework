@@ -45,7 +45,7 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
       new RClient(baseDir, scriptPath, modelPath)
   }
 
-  val colors = Seq("red", "green", "blue", "yellow", "olive", "purple")
+  val colors = Seq("red", "green", "blue", "yellow", "olive", "purple", "pink")
 
   val colorMapping = Map(
     "bike" -> "red",
@@ -53,7 +53,8 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
     "car" -> "blue",
     "still" -> "yellow",
     "train" -> "olive",
-    "walk" -> "purple"
+    "walk" -> "purple",
+    "e-bike" -> "pink"
   )
 
   var debug: Boolean = true
