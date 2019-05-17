@@ -231,7 +231,9 @@ object TrentoStudy3rd extends SQLiteAcces with JSONExporter with ReverseGeoCodin
         // get all modes in time range between both GPS points
         val modesBetween = compressedModes.filter(e => e._3.after(begin) && e._3.before(end))
 
-        if (modesBetween.isEmpty) { // handle no mode change between both points
+        if (compressedModes.isEmpty) {
+          Seq((tp1, tp2, "walk"))  // FIXME
+        } else if (modesBetween.isEmpty) { // handle no mode change between both points
           // this happens due to compression, just take the last known mode
           // we might not have seen any mode before because
           // i) it might be the first point at all or
@@ -437,7 +439,6 @@ object TrentoStudy3rd extends SQLiteAcces with JSONExporter with ReverseGeoCodin
           Seq.empty[AccelerometerRecord]
         }
 
-
         for ((trip, tripIdx) <- trips.zipWithIndex) {
           // write to SQLite
           val startAddress = getStreet(trip.start.long, trip.start.lat)
@@ -467,7 +468,6 @@ object TrentoStudy3rd extends SQLiteAcces with JSONExporter with ReverseGeoCodin
           } else {
             val modesWProbAndTimeStamp: Seq[(String, Double, Timestamp)] =
               predicter.predict(trip, filteredAccelerometerData, userID, tripIdx)
-
 
             modesWProbAndTimeStamp.foreach(
               e => assert(e._3.after(trip.start.timestamp)
