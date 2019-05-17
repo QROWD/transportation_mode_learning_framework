@@ -116,9 +116,7 @@ class SQLiteAcces {
                     trip: Trip): Unit = {
     val citizenID = userID
     val startCoordinate = s"[${trip.start.lat},${trip.start.long}]"
-    // startAddress = startAddress
     val stopCoordinate = s"[${trip.end.lat},${trip.end.long}]"
-    // stopAddress = stopAddress
     val startTimestamp = trip.start.timestamp.toLocalDateTime.format(dateTimeFormatter)
     val stopTimestamp = trip.end.timestamp.toLocalDateTime.format(dateTimeFormatter)
     val path = "[" + trip.trace.map(p => s"[${p.long},${p.lat}]").mkString(", ") + "]"
@@ -135,17 +133,98 @@ class SQLiteAcces {
          |  stop_address,
          |  path
          |) VALUES (
-         |  '$citizenID',
-         |  '$startCoordinate',
-         |  '$startTimestamp',
-         |  '$startAddress',
-         |  '$stopCoordinate',
-         |  '$stopTimestamp',
-         |  '$stopAddress',
-         |  '$path'
+         |  ?,
+         |  ?,
+         |  ?,
+         |  ?,
+         |  ?,
+         |  ?,
+         |  ?,
+         |  ?
          |)
        """.stripMargin
-    tripConnection.createStatement().execute(queryStr)
+
+    val stmt = stageConnection.prepareStatement(queryStr)
+    stmt.setString(1, citizenID)
+    stmt.setString(2, startCoordinate)
+    stmt.setString(3, startTimestamp)
+    stmt.setString(4, startAddress)
+    stmt.setString(5, stopCoordinate)
+    stmt.setString(6, stopTimestamp)
+    stmt.setString(7, stopAddress)
+    stmt.setString(8, path)
+    stmt.executeUpdate()
+  }
+
+  /*
+   * Schema:
+   *
+   * CREATE TABLE IF NOT EXISTS "trip" (
+   *    "trip_id" INTEGER NOT NULL PRIMARY KEY,
+   *    "citizen_id" VARCHAR(255) NOT NULL,
+   *    "start_coordinate" VARCHAR(255) NOT NULL,
+   *    "start_address" VARCHAR(255) NOT NULL,
+   *    "stop_coordinate" VARCHAR(255) NOT NULL,
+   *    "stop_address" VARCHAR(255) NOT NULL,
+   *    "start_timestamp" DATETIME NOT NULL,
+   *    "stop_timestamp" DATETIME NOT NULL,
+   *    "transportation_mode" VARCHAR(255),
+   *    "segment_confidence" REAL,
+   *    "transportation_confidence" REAL,
+   *    "path" TEXT,
+   *    "json_file_path" TEXT, FOREIGN KEY ("citizen_id") REFERENCES "citizen" ("citizen_id")
+   * );
+   */
+  def writeStageInfoWithJSONFilePath(stage: Pilot4Stage): Unit = {
+    val citizenID = stage.userID
+    val startCoordinate = s"[${stage.start.lat},${stage.start.long}]"
+    val stopCoordinate = s"[${stage.stop.lat},${stage.stop.long}]"
+    val startTimestamp = stage.start.timestamp.toLocalDateTime.format(dateTimeFormatter)
+    val stopTimestamp = stage.stop.timestamp.toLocalDateTime.format(dateTimeFormatter)
+    val path = "[" + stage.trajectory.map(p => s"[${p.long},${p.lat}]").mkString(", ") + "]"
+
+    val queryStr =
+      s"""
+         |INSERT INTO trip (
+         |  citizen_id,
+         |  start_coordinate,
+         |  start_timestamp,
+         |  start_address,
+         |  stop_coordinate,
+         |  stop_timestamp,
+         |  stop_address,
+         |  transportation_mode,
+         |  transportation_confidence,
+         |  path,
+         |  json_file_path
+         |) VALUES (
+         |  ?,
+         |  ?,
+         |  ?,
+         |  ?,
+         |  ?,
+         |  ?,
+         |  ?,
+         |  ?,
+         |  ?,
+         |  ?,
+         |  ?
+         |)
+       """.stripMargin
+
+    val stmt = stageConnection.prepareStatement(queryStr)
+    stmt.setString(1, citizenID)
+    stmt.setString(2, startCoordinate)
+    stmt.setString(3, startTimestamp)
+    stmt.setString(4, stage.startAddress)
+    stmt.setString(5, stopCoordinate)
+    stmt.setString(6, stopTimestamp)
+    stmt.setString(7, stage.stopAddress)
+    stmt.setString(8, stage.mode)
+    stmt.setDouble(9, stage.modeConfidence)
+    stmt.setString(10, path)
+    stmt.setString(11, stage.jsonFilePath)
+    stmt.executeUpdate()
   }
 
   /**
