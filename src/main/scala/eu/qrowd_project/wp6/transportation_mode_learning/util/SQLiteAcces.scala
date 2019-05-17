@@ -46,6 +46,21 @@ class SQLiteAcces {
     users
   }
 
+  def getUsersWithDataForDate(dateString: String): Set[String] = {
+    val queryStr =
+      s"SELECT DISTINCT citizen_id " +
+      s"FROM trip " +
+      s"WHERE strftime('%Y%m%d', start_timestamp)='$dateString'"
+
+    var users = Set.empty[String]
+    val res = executeQuery(SQLiteDB.Stages, queryStr)
+    while (res.next()) {
+      users += res.getString("citizen_id")
+    }
+
+    users
+  }
+
   def executeQuery(db: SQLiteDB, queryStr: String): ResultSet = {
     db match {
       case SQLiteDB.Stages => stageConnection.createStatement().executeQuery(queryStr)
