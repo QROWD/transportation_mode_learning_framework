@@ -93,6 +93,10 @@ class CassandraDBConnector(var userIds: Seq[String] = Seq()) {
     runQuery(userIDs, session, day, accuracyThreshold)
   }
 
+  def getAllUsers(): List[KeyspaceMetadata] = {
+    cluster.getMetadata.getKeyspaces.toList
+  }
+
   def getAccDataForUserAndDay(userID: String, day: String, session: Session = session): Seq[AccelerometerRecord] = {
     logger.info(s"getting accelerometer data for user $userID on $day...")
     val resultSet: ResultSet = session.execute(
