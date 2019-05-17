@@ -3,12 +3,12 @@ package eu.qrowd_project.wp6.transportation_mode_learning.util
 import java.sql.{Connection, DriverManager, ResultSet, Timestamp}
 import java.time.format.DateTimeFormatter
 
-import eu.qrowd_project.wp6.transportation_mode_learning.Pilot2Stage
 import eu.qrowd_project.wp6.transportation_mode_learning.scripts.ModePredictionPilot2.UserID
 import eu.qrowd_project.wp6.transportation_mode_learning.scripts.Trip
-import eu.qrowd_project.wp6.transportation_mode_learning.user.{ILogUsageMode, ILogUsageModeUnknownException}
 import eu.qrowd_project.wp6.transportation_mode_learning.user.ILogUsageMode.ILogUsageMode
+import eu.qrowd_project.wp6.transportation_mode_learning.user.{ILogUsageMode, ILogUsageModeUnknownException}
 import eu.qrowd_project.wp6.transportation_mode_learning.util.SQLiteDB.SQLiteDB
+import eu.qrowd_project.wp6.transportation_mode_learning.{Pilot2Stage, Pilot4Stage}
 
 
 class SQLiteAcces {
@@ -32,6 +32,18 @@ class SQLiteAcces {
         connection.close()
       }
     }
+  }
+
+  def getAllUsers(): Set[String] = {
+    val queryStr = "SELECT citizen_id FROM citizen"
+
+    var users = Set.empty[String]
+    val res = executeQuery(SQLiteDB.Stages, queryStr)
+    while (res.next()) {
+      users += res.getString("citizen_id")
+    }
+
+    users
   }
 
   def executeQuery(db: SQLiteDB, queryStr: String): ResultSet = {
