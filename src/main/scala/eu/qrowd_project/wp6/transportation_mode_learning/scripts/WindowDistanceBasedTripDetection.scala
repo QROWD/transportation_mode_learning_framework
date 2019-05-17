@@ -17,6 +17,16 @@ class WindowDistanceBasedTripDetection(windowSize: Int, stepSize: Int,
   val logger = com.typesafe.scalalogging.Logger("WindowDistanceTripDetection")
   val secsPerDay: Int = 60 * 60 * 24
 
+  override def getSettings: Map[String, String] = {
+    Map[String, String](
+      "tripDetectionType" -> "WindowDistanceBasedTripDetection",
+      "windowSize" -> windowSize.toString,
+      "distanceThresholdInKm" -> distanceThresholdInKm.toString,
+      "minNrOfSegments" -> minNrOfSegments.toString,
+      "noiseSegments" -> noiseSegments.toString
+    )
+  }
+
   def secsOfDayToDate(secs: Int): LocalDateTime = {
     var secsOfDay = secs
     val year = 2018

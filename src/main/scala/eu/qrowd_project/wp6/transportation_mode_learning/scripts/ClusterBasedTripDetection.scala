@@ -69,7 +69,16 @@ class ClusterBasedTripDetection(
     trips
   }
 
-
+  override def getSettings: Map[String, String] = {
+    Map[String, String](
+      "tripDetectionType" -> "ClusterBasedTripDetection",
+      "useMapMatching" -> useMapMatching.toString,
+      "clusterer" -> "tdbscan",
+      "cEps" -> config.getDouble("stop_detection.clustering.tdbscan.cEps").toString,
+      "eps" -> config.getDouble("stop_detection.clustering.tdbscan.eps").toString,
+      "minPts" -> config.getInt("stop_detection.clustering.tdbscan.minPts").toString
+    )
+  }
 }
 
 sealed abstract class Trip(
