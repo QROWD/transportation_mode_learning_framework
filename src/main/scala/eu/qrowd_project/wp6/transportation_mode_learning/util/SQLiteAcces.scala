@@ -247,9 +247,9 @@ class SQLiteAcces {
   def writeStageInfo(stage: Pilot2Stage, tripID: Long): Unit = {
     val citizenID: String = stage.userID
     val startCoordinate: String = s"[${stage.start.lat},${stage.start.long}]"
-    val startAddress: String = stage.startAddress.replace("'", "")
+    val startAddress: String = stage.startAddress
     val stopCoordinate: String = s"[${stage.stop.lat},${stage.stop.long}]"
-    val stopAddress: String = stage.startAddress.replace("'", "")
+    val stopAddress: String = stage.startAddress
     val startTimestamp: Timestamp = stage.start.timestamp
     val stopTimestamp: Timestamp = stage.stop.timestamp
     val transportationMode: String = stage.mode
@@ -276,16 +276,19 @@ class SQLiteAcces {
          |  '$citizenID',
          |  '$startCoordinate',
          |  '$startTimestamp',
-         |  '$startAddress',
+         |  ?,
          |  '$stopCoordinate',
          |  '$stopTimestamp',
-         |  '$stopAddress',
+         |  ?,
          |  '$transportationMode',
          |  $transportationConfidence,
          |  '$path',
          |  $multimodalTripId
          |)
        """.stripMargin
-    stageConnection.createStatement().execute(queryStr)
+    val stmt = stageConnection.prepareStatement(queryStr)
+    stmt.setString(1, startAddress)
+    stmt.setString(2, stopAddress)
+    stmt.executeUpdate()
   }
 }
