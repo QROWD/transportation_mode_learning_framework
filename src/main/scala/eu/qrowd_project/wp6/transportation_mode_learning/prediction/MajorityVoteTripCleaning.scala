@@ -57,18 +57,22 @@ class MajorityVoteTripCleaning(window: Window, iterations: Int = 1, step: Int = 
   def singleCleanStep(trip: Trip,
                       modes: Seq[(String, Double, Timestamp)],
                       modeProbabilities: ModeProbabilities): (Trip, Seq[(String, Double, Timestamp)]) = {
-    // add dummy elements to begin and end of the list of modes
-    val extendedModes = padding(modes, dummyElement)
+    if (modes.nonEmpty) {
+      // add dummy elements to begin and end of the list of modes
+      val extendedModes = padding(modes, dummyElement)
 
-    // sliding window and keep majority
-    val cleanedModes = extendedModes
-      .sliding(window.numEntries * 2 + 1)    // n elements before + the current element + n elements after
-      .map(majority) // majority voting, but timestamp taken from middle element
-      .toSeq
+      // sliding window and keep majority
+      val cleanedModes: Seq[(String, Double, Timestamp)] = extendedModes
+        .sliding(window.numEntries * 2 + 1)    // n elements before + the current element + n elements after
+        .map(majority) // majority voting, but timestamp taken from middle element
+        .toSeq
 
-    assert(cleanedModes.size == modes.size)
+      assert(cleanedModes.size == modes.size)
 
-    (trip, cleanedModes)
+      (trip, cleanedModes)
+    } else {
+      (trip, Seq.empty[(String, Double, Timestamp)])
+    }
   }
 
   /**
