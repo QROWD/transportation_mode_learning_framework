@@ -2,11 +2,9 @@ package eu.qrowd_project.wp6.transportation_mode_learning.util
 
 import java.io.File
 import java.sql.Timestamp
-import java.text.SimpleDateFormat
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util
-import java.util.Date
 
 import breeze.io.CSVWriter
 import com.datastax.driver.core.exceptions.{InvalidQueryException, UnauthorizedException}
