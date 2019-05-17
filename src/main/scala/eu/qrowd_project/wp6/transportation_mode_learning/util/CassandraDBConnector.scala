@@ -74,8 +74,8 @@ class CassandraDBConnector(var userIds: Seq[String] = Seq()) {
   var _sessionInitialized = false
 
   /**
-    *
-    * Returns all location event record for the given date per each user that belongs to QROWD project.
+    * Returns all location event record for the given date per each user that
+    * belongs to QROWD project.
     *
     * @param day the date you want to query for. format: `yyyymmdd`
     * @return users with their location event records

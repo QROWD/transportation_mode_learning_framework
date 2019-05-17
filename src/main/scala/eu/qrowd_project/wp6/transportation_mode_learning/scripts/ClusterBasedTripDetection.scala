@@ -15,7 +15,7 @@ class ClusterBasedTripDetection(
 
   val logger = com.typesafe.scalalogging.Logger("TripDetection")
 
-  // FIXME: Move to config file
+  // FIXME: Move to config file (map matching not used, yet)
   lazy val mapMatcher = new BarefootMapMatcherSocket(host = "127.0.0.1", port = 1234)
 
   override def find(trajectory: Seq[TrackPoint]): Seq[ClusterTrip] = {

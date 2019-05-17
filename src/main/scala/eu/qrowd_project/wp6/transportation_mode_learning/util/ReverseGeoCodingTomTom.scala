@@ -17,7 +17,7 @@ trait ReverseGeoCodingTomTom {
 
   private val baseURL = "api.tomtom.com"
   private val versionNumber = 2
-  private val ext = "JSON"
+  private val ext = "json"
   private val apiKey = tomtomDevConfig.getString("api_key")
   private val radius = appConfig.getInt("stop_detection.gps_accuracy")
 

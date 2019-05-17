@@ -87,7 +87,7 @@ class Predict(baseDir: String, scriptPath: String, modelPath: String) {
     // - the modes probability
     // - the timestamp of the sensor value
     val bestModes: Seq[((String, Double, Timestamp), (Timestamp, (Double, Double, Double, Double, Double, Double)))] =
-    getBestModes(probMatrix)
+      getBestModes(probMatrix)
 
     // cleaned best modes
     val cleanedBestModes: Seq[(String, Double, Timestamp)] =
