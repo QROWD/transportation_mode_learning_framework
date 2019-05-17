@@ -14,7 +14,8 @@ import eu.qrowd_project.wp6.transportation_mode_learning.mapmatching.{Graphhoppe
 import eu.qrowd_project.wp6.transportation_mode_learning.{Pilot2Stage, Predict}
 import eu.qrowd_project.wp6.transportation_mode_learning.scripts.ModePredictionPilot2.{UserID, appConfig, rScriptPath}
 import eu.qrowd_project.wp6.transportation_mode_learning.user.{ILogUsageMode, UserSettings}
-import eu.qrowd_project.wp6.transportation_mode_learning.util.{AccelerometerRecord, AutoReconnectingCassandraDBConnector, CassandraDBConnector, GPXConverter, GeoJSONConverter, HaversineDistance, JSONExporter, LocationEventRecord, ReverseGeoCodingTomTom, SQLiteAcces, SQLiteDB, TrackPoint, TrackpointUtils}
+import eu.qrowd_project.wp6.transportation_mode_learning.util.{AccelerometerRecord, CassandraDBConnector, GPXConverter, GeoJSONConverter, HaversineDistance, JSONExporter, LocationEventRecord, ReverseGeoCodingTomTom, SQLiteAcces, SQLiteDB, TrackPoint, TrackpointUtils}
+import eu.qrowd_project.wp6.transportation_mode_learning.{Pilot2Stage, Predict}
 import scopt.Read
 
 import scala.collection.JavaConverters._
@@ -63,7 +64,7 @@ object TrentoStudy3rd extends SQLiteAcces with JSONExporter with ReverseGeoCodin
   private val appConfig = ConfigFactory.load()
   private val formatter = DateTimeFormatter.ofPattern("yyyyMMdd")
 
-  private lazy val cassandra = new AutoReconnectingCassandraDBConnector
+  private lazy val cassandra = new CassandraDBConnector
 
   private lazy val rScriptPath = appConfig.getString("prediction_settings.r_script_path")
   private lazy val predicter = new Predict(rScriptPath,

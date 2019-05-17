@@ -92,7 +92,7 @@ object IlogQuestionaireDataGeneratorPilot2 extends JSONExporter with ParquetLoca
 
   private var users: Seq[String] = Seq()
 //  private lazy val cassandra = CassandraDBConnector(users)
-  private lazy val cassandra = new AutoReconnectingCassandraDBConnector
+  private lazy val cassandra = new CassandraDBConnector
 
   private def compress[A](l: List[A]):List[A] = l.foldLeft(List[A]()) {
     case (List(), e) => List(e)

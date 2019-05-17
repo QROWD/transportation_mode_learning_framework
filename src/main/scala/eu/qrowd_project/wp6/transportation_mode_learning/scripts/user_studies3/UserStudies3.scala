@@ -36,7 +36,7 @@ object UserStudies3
   private val appConfig = ConfigFactory.load()
   private val formatter = DateTimeFormatter.ofPattern("yyyyMMdd")
 
-  private lazy val cassandra = new AutoReconnectingCassandraDBConnector
+  private lazy val cassandra = new CassandraDBConnector
 
   private lazy val predicter = new Predict(rScriptPath,
 //    s"$rScriptPath/prediction_server.r",
