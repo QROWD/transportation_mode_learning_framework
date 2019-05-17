@@ -64,8 +64,9 @@ object LocationEventRecord {
     LocationEventRecord(day, timestamp, accuracy, bearing, latitude, longitude, altitude, provider, speed)
   }
 
-  private val dateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
+  private val dateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmssnnnnnnnnn")
   private def asTimestamp(timestamp :String) =
-    Timestamp.valueOf(LocalDateTime.parse(timestamp.substring(0, 14), dateTimeFormatter))
+    Timestamp.valueOf(LocalDateTime.parse(timestamp + "000000", dateTimeFormatter))
+//    Timestamp.valueOf(LocalDateTime.parse(timestamp.substring(0, 14), dateTimeFormatter))
 
 }
