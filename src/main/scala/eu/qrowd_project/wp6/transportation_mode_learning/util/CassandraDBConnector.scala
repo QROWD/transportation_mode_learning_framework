@@ -118,6 +118,23 @@ class CassandraDBConnector(var userIds: Seq[String] = Seq()) {
     }
   }
 
+  def getGPSDataForUserAndDay(userID: String, day: String, session: Session = session, minAccuracy: Float = 50): Seq[GPSRecord] = {
+    logger.info(s"getting GPS data for user $userID on $day...")
+    val resultSet: ResultSet = session.execute(
+      s"SELECT * FROM $userID.locationeventpertime WHERE day='$day'")
+
+    time {
+      if (resultSet != null) {
+        // copied
+        resultSet.map(row => LocationEventRecord.from(row))
+          .filter(_.accuracy <= minAccuracy)
+          .map(r => GPSRecord(r.longitude, r.latitude, r.timestamp)).toSeq
+      } else {
+        Seq.empty[GPSRecord]
+      }
+    }
+  }
+
   def time[R](block: => R): R = {
     val t0 = System.currentTimeMillis()
     val result = block    // call-by-name
