@@ -126,14 +126,15 @@ class CassandraDBConnector(var userIds: Seq[String] = Seq()) {
     result
   }
 
-
-
   def runQuery(keyspaces: util.List[KeyspaceMetadata], session: Session, day: String, accuracyThreshold: Int): Seq[(String, Seq[LocationEventRecord])] = {
+    runQuery(keyspaces.map(_.getName).toList, session, day, accuracyThreshold)
+  }
+
+  def runQuery(userSalts: List[String], session: Session, day: String, accuracyThreshold: Int): Seq[(String, Seq[LocationEventRecord])] = {
     var data: Seq[(String, Seq[LocationEventRecord])] = Seq()
 
     // loop over each keyspace
-    for (keyspace <- keyspaces if userIds.isEmpty || userIds.contains(keyspace.getName)) { //Get the keyspace name that is what we need to perform queries. Since 1 keyspace = 1 user, the keyspace name is the user uniqueidentifier (salt)
-      val usersalt = keyspace.getName
+    for (usersalt <- userSalts if userIds.isEmpty || userIds.contains(usersalt)) { //Get the keyspace name that is what we need to perform queries. Since 1 keyspace = 1 user, the keyspace name is the user uniqueidentifier (salt)
 
       try {
         // execute the select query for all the positions collected from the user (usersalt) for a specific day (daystring)
