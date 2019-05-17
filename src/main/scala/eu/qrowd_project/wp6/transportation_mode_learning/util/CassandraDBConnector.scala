@@ -82,10 +82,17 @@ class CassandraDBConnector(var userIds: Seq[String] = Seq()) {
     */
   def readData(day: String,
                accuracyThreshold: Int = Int.MaxValue,
-               userID: Option[String] = None): Seq[(String, Seq[LocationEventRecord])] = {
+               userIDs: Option[util.List[KeyspaceMetadata]] = None): Seq[(String, Seq[LocationEventRecord])] = {
     // get all the keyspaces
-    val keyspaces = cluster.getMetadata.getKeyspaces
+    val keyspaces = userIDs.getOrElse(cluster.getMetadata.getKeyspaces)
     runQuery(keyspaces, session, day, accuracyThreshold)
+  }
+
+  def readData(day: String,
+               accuracyThreshold: Int,
+               userIDs: List[String]): Seq[(String, Seq[LocationEventRecord])] = {
+    // get all the keyspaces
+    runQuery(userIDs, session, day, accuracyThreshold)
   }
 
   def getAccDataForUserAndDay(userID: String, day: String, session: Session = session): Seq[AccelerometerRecord] = {
