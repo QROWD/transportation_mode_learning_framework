@@ -30,7 +30,7 @@ trait ReverseGeoCodingTomTom {
 
     val queryURI = String.format(uri, geoCoordStr)
     Try(
-      Http(queryURI).execute(is => {
+      Http(queryURI).timeout(1200000, 1200000).execute(is => {
         val reader = Json.createReader(is)
         val json = reader.readObject()
 
