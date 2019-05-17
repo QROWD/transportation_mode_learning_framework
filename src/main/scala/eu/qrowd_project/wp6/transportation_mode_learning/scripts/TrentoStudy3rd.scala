@@ -4,22 +4,20 @@ import java.io.IOException
 import java.nio.charset.Charset
 import java.nio.file.{Files, Path, Paths}
 import java.sql.Timestamp
-import java.time.{Duration, LocalDate}
 import java.time.format.DateTimeFormatter
-import java.util.stream.Collectors
-import java.util.{DoubleSummaryStatistics, Locale}
+import java.time.{Duration, LocalDate}
+import java.util.Locale
 
 import com.typesafe.config.ConfigFactory
 import eu.qrowd_project.wp6.transportation_mode_learning.mapmatching.{GraphhopperMapMatcherHttp, GraphhopperPublicTransitMapMatcherHttp}
-import eu.qrowd_project.wp6.transportation_mode_learning.{Pilot2Stage, Predict}
-import eu.qrowd_project.wp6.transportation_mode_learning.scripts.ModePredictionPilot2.{UserID, appConfig, rScriptPath}
 import eu.qrowd_project.wp6.transportation_mode_learning.user.{ILogUsageMode, UserSettings}
 import eu.qrowd_project.wp6.transportation_mode_learning.util.{AccelerometerRecord, CassandraDBConnector, GPXConverter, GeoJSONConverter, HaversineDistance, JSONExporter, LocationEventRecord, ReverseGeoCodingTomTom, SQLiteAcces, SQLiteDB, TrackPoint, TrackpointUtils}
 import eu.qrowd_project.wp6.transportation_mode_learning.{Pilot2Stage, Predict}
 import scopt.Read
 
-import scala.collection.JavaConverters._
 import scala.util.Try
+
+import scala.collection.JavaConverters._
 
 
 case class TrentoStudyConfig(
@@ -64,9 +62,12 @@ object TrentoStudy3rd extends SQLiteAcces with JSONExporter with ReverseGeoCodin
   private val appConfig = ConfigFactory.load()
   private val formatter = DateTimeFormatter.ofPattern("yyyyMMdd")
 
+  type UserID = String
+
   private lazy val cassandra = new CassandraDBConnector
 
   private lazy val rScriptPath = appConfig.getString("prediction_settings.r_script_path")
+  private lazy val predictionWindowSize = appConfig.getInt("prediction_settings.window_size")
   private lazy val predicter = new Predict(rScriptPath,
     s"$rScriptPath/run.r",
     s"$rScriptPath/model.rds")
@@ -460,29 +461,35 @@ object TrentoStudy3rd extends SQLiteAcces with JSONExporter with ReverseGeoCodin
           predicter.debug = config.writeDebugOutput
           predicter.debugOutputDir = dbgDir.resolve(config.date.format(formatter)).resolve(userID)
 
-          val modesWProbAndTimeStamp: Seq[(String, Double, Timestamp)] =
-            predicter.predict(trip, filteredAccelerometerData, userID, tripIdx)
+          if (filteredAccelerometerData.size < predictionWindowSize) {
+            logger.error("Found stage with less accelerometer data points than " +
+              "required for prediction. Stage will be dropped!")
+          } else {
+            val modesWProbAndTimeStamp: Seq[(String, Double, Timestamp)] =
+              predicter.predict(trip, filteredAccelerometerData, userID, tripIdx)
 
-          modesWProbAndTimeStamp.foreach(
-            e => assert(e._3.after(trip.start.timestamp)
-              && e._3.before(trip.end.timestamp)))
-          val stages: List[Pilot2Stage] = buildStages(
-            userID, day, trip, tripIdx, modesWProbAndTimeStamp, config.writeDebugOutput)
 
-          if (config.writeDebugOutput) {
-            stages.zipWithIndex.foreach(stageWIdx => {
-              val s = stageWIdx._1
-              val stageIdx = stageWIdx._2
-              val mapMatched: Seq[TrackPoint] = mapMatching(s.trajectory, s.mode)
-              val path = dbgDir.resolve(day).resolve(userID)
-                .resolve(s"map_matched_stage_${tripIdx}_${stageIdx}")
-              writeGeoJSON(path, NonClusterTrip(s.start, s.stop, mapMatched))
-            })
-          }
+            modesWProbAndTimeStamp.foreach(
+              e => assert(e._3.after(trip.start.timestamp)
+                && e._3.before(trip.end.timestamp)))
+            val stages: List[Pilot2Stage] = buildStages(
+              userID, day, trip, tripIdx, modesWProbAndTimeStamp, config.writeDebugOutput)
 
-          // write results to SQLite
-          if (!config.dryRun) {
-            stages.foreach(s => writeStageInfo(s, tripID))
+            if (config.writeDebugOutput) {
+              stages.zipWithIndex.foreach(stageWIdx => {
+                val s = stageWIdx._1
+                val stageIdx = stageWIdx._2
+                val mapMatched: Seq[TrackPoint] = mapMatching(s.trajectory, s.mode)
+                val path = dbgDir.resolve(day).resolve(userID)
+                  .resolve(s"map_matched_stage_${tripIdx}_${stageIdx}")
+                writeGeoJSON(path, NonClusterTrip(s.start, s.stop, mapMatched))
+              })
+            }
+
+            // write results to SQLite
+            if (!config.dryRun) {
+              stages.foreach(s => writeStageInfo(s, tripID))
+            }
           }
         }
       }
