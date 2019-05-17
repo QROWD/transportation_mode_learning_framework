@@ -45,6 +45,53 @@ class ReverseGeoCoderOSM(
         }).body
     )
   }
+
+  def addressLookup(long: Double, lat: Double): String = {
+    // address retrieval (reverse geo-coding
+    val json = find(long, lat)
+    var label: String = ""
+
+    /* e.g.:
+     * {
+     *   "place_id":84294074,
+     *   "licence":"Data © OpenStreetMap contributors, ODbL 1.0. https://osm.org/copyright",
+     *   "osm_type":"way",
+     *   "osm_id":34991542,
+     *   "lat":"46.1008776000705",
+     *   "lon":"11.1009310570506",
+     *   "place_rank":26,
+     *   "category":"highway",
+     *   "type":"residential",
+     *   "importance":"0.1",
+     *   "addresstype":"road",
+     *   "name":"Via Luigi Caneppele",
+     *   "display_name":"Via Luigi Caneppele, Canova, Trento, Territorio Val d'Adige, TN, TAA, 38121, Italia",
+     *   "address":{
+     *       "road":"Via Luigi Caneppele",
+     *       "suburb":"Canova",
+     *       "city":"Trento",
+     *       "county":"Territorio Val d'Adige",
+     *       "state":"TAA",
+     *       "postcode":"38121",
+     *       "country":"Italia",
+     *       "country_code":"it"},
+     *   "extratags":{},
+     *   "boundingbox":["46.1008156","46.1010727","11.0995794","11.1017272"]
+     * }
+     */
+    try {
+      label = json.get.getString("name")
+    } catch {
+      case e: ClassCastException =>
+        label = json.get.getString("display_name")
+    }
+
+    if(json.isSuccess) {
+      label
+    } else {
+      "UNKNOWN_ADDRESS"
+    }
+  }
 }
 
 /**
