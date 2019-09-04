@@ -181,6 +181,8 @@ class WindowDistanceBasedTripDetection(windowSize: Int, stepSize: Int,
           // found the beginning of a new trip
           lastTrip = Seq(currPoint)
           beenWithinTrip = 1
+        case _ =>
+          throw new RuntimeException()
       }
     }
 
