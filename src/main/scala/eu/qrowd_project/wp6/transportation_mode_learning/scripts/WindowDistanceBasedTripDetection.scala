@@ -57,6 +57,7 @@ class WindowDistanceBasedTripDetection(windowSize: Int, stepSize: Int,
 
     var candidateKeys = mutable.ArraySeq[Int]()
     candidateKeys ++= windows.keys
+    candidateKeys = candidateKeys.sorted
 
     for (point <- points) {
       val secsOfDay = getSecondsOfDay(point.timestamp)
@@ -64,7 +65,7 @@ class WindowDistanceBasedTripDetection(windowSize: Int, stepSize: Int,
       /* Since points are sorted by date we can throw away all key candidates
        * that are smaller than the current point's timestamp because they won't
        * be used in the future */
-      while (candidateKeys.nonEmpty && candidateKeys.head < secsOfDay) {
+      while (candidateKeys.nonEmpty && candidateKeys.head < (secsOfDay - stepSize)) {
         candidateKeys = candidateKeys.tail
       }
 
