@@ -35,38 +35,48 @@ class ClusterBasedTripDetection(
     // keep first and last point of each cluster
     val stopsStartEnd = stopClusters.map(c => (c.head, c.last, c))
 
-    // the stop clusters are in ascending order w.r.t. time, i.e. we assume trips to be happen
-    // between successive points
-    // we keep the last point of the start cluster and the first point of the end cluster
-    val trips: Seq[ClusterTrip] = stopsStartEnd
-      .sliding(2)
-      .filter(_.size == 2)
-      .map(e => {
-        // last point of first stop
-        val begin = e(0)._2 // firstStop._2
+    if (stopClusters.nonEmpty) {
+      // the stop clusters are in ascending order w.r.t. time, i.e. we assume trips to be happen
+      // between successive points
+      // we keep the last point of the start cluster and the first point of the end cluster
+      val trips: Seq[ClusterTrip] = stopsStartEnd
+        .sliding(2)
+        .filter(_.size == 2)
+        .map(e => {
+          // last point of first stop
+          val begin = e(0)._2 // firstStop._2
 
-        // first point of second stop
-        val end = e(1)._1 // secondStop._1
-        // entries in between
-        val entries = points.filter(p => p.timestamp.after(begin.timestamp) && p.timestamp.before(end.timestamp))
-        val trace = Seq(begin) ++ entries ++ Seq(end)
-        val beginCluster: Seq[TrackPoint] = e(0)._3
-        val endCluster: Seq[TrackPoint] = e(1)._3
+          // first point of second stop
+          val end = e(1)._1 // secondStop._1
+          // entries in between
+          val entries = points.filter(p => p.timestamp.after(begin.timestamp) && p.timestamp.before(end.timestamp))
+          val trace = Seq(begin) ++ entries ++ Seq(end)
+          val beginCluster: Seq[TrackPoint] = e(0)._3
+          val endCluster: Seq[TrackPoint] = e(1)._3
 
-        ClusterTrip(begin, end, trace, beginCluster, endCluster)
-      }).toSeq
+          ClusterTrip(begin, end, trace, beginCluster, endCluster)
+        }).toSeq
 
-    // perform map matching
-    if (useMapMatching) {
-      trips.map(trip => {
-        val response = mapMatcher.query(BarefootJSONConverter.convert(trip.trace).toString)
+//      // perform map matching
+//      if (useMapMatching) {
+//        trips.map(trip => {
+//          val response = mapMatcher.query(BarefootJSONConverter.convert(trip.trace).toString)
+//
+//          // TODO: finish
+//          println(response)
+//        })
+//      }
 
-        // TODO: finish
-        println(response)
-      })
+      trips.filter(_.averageSpeed > config.getDouble("stop_detection.clustering.min_avg_speed"))
+
+    } else {
+      Seq(ClusterTrip(
+        trajectory.head,
+        trajectory.last,
+        trajectory,
+        Seq.empty[TrackPoint], Seq.empty[TrackPoint])).filter(
+          _.averageSpeed > config.getDouble("stop_detection.clustering.min_avg_speed"))
     }
-
-    trips
   }
 
   override def getSettings: Map[String, String] = {
