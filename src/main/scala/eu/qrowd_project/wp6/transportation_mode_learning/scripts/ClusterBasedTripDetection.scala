@@ -2,7 +2,7 @@ package eu.qrowd_project.wp6.transportation_mode_learning.scripts
 
 import com.typesafe.config.{Config, ConfigFactory}
 import eu.qrowd_project.wp6.transportation_mode_learning.mapmatching.BarefootMapMatcherSocket
-import eu.qrowd_project.wp6.transportation_mode_learning.util.{BarefootJSONConverter, POIRetrieval, TrackPoint}
+import eu.qrowd_project.wp6.transportation_mode_learning.util.{BarefootJSONConverter, HaversineDistance, POIRetrieval, TrackPoint}
 
 /**
   * Basically, uses the stop point detection to perform trip detection given a GPS trajectory.
@@ -84,7 +84,18 @@ class ClusterBasedTripDetection(
 sealed abstract class Trip(
                             val start: TrackPoint,
                             val end: TrackPoint,
-                            val trace: Seq[TrackPoint])
+                            val trace: Seq[TrackPoint]) {
+  def averageSpeed: Double = {
+    if (trace.nonEmpty) {
+      trace.sliding(2)
+        .map(pair => HaversineDistance.compute(pair.head, pair.last) /
+          ((pair.last.timestamp.getTime - pair.head.timestamp.getTime) / 1000.0 / 60 / 60))
+        .foldLeft((0.0, 1))((acc, i) => ((acc._1 + (i - acc._1) / acc._2), acc._2 + 1))._1
+    } else {
+      0
+    }
+  }
+}
 
 case class NonClusterTrip(
                            override val start: TrackPoint,
