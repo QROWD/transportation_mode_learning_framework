@@ -19,3 +19,9 @@ buildNumber.properties
 
 # R stuff
 .Rhistory
+
+# This that should not be added to Git
+src/main/scala/eu/qrowd_project/wp6/transportation_mode_learning/scripts/AccelerometerDataCollector.scala
+src/main/scala/eu/qrowd_project/wp6/transportation_mode_learning/scripts/WindowDistanceDebugging.scala
+src/main/resources/cassandra.conf
+src/main/resources/tomtomdev.conf
