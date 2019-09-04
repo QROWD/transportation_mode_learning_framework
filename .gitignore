@@ -15,6 +15,7 @@ buildNumber.properties
 
 # IntelliJ files
 .idea/
+*.iml
 
 # R stuff
 .Rhistory
