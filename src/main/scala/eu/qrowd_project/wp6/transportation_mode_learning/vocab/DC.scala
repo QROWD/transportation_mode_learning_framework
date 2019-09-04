@@ -1,6 +1,6 @@
 package eu.qrowd_project.wp6.transportation_mode_learning.vocab
 
-import org.apache.jena.rdf.model.{Property, Resource, ResourceFactory}
+import org.apache.jena.rdf.model.{Property, ResourceFactory}
 
 /**
   * This vocabulary is incomplete!!!
