@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/123440192.svg)](https://zenodo.org/badge/latestdoi/123440192)
+
 # transportation_mode_learning_framework
 
 ## Nomenclature
