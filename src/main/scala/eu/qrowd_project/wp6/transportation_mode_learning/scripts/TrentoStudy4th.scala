@@ -491,110 +491,106 @@ object TrentoStudy4th extends SQLiteAcces with OutlierDetecting with JSONExporte
       dateStr, gpsAccuracy, usersToProcess)
 
     for ((userID, daysGPSData) <- gpsData) {
-      if (userID == "c7ce1b623cd29244de2d17957e8f485181cbf7a1") {
-        logger.warn(s"Skipping user $userID")
-      } else {
-        val provRecorder = new ProvenanceRecorder(userID, dateStr)
+      val provRecorder = new ProvenanceRecorder(userID, dateStr)
 
-        logger.info(s"Perfoming mode detection for user $userID")
-        if (daysGPSData.nonEmpty) {
-          storeWholeDayTrajectoryData(userID, dateStr, daysGPSData)
-          // 2) ...and remove the outliers
-          val daysFullGPSTrajectory = daysGPSData
-            .map(e => TrackPoint(e.latitude, e.longitude, e.timestamp))
-          val outliers = detectOutliers(daysFullGPSTrajectory)
-          val daysCleanedGPSTrjectory: Seq[TrackPoint] = daysFullGPSTrajectory.diff(outliers)
-          assert(daysCleanedGPSTrjectory.size == (daysFullGPSTrajectory.size - outliers.size))
+      logger.info(s"Perfoming mode detection for user $userID")
+      if (daysGPSData.nonEmpty) {
+        storeWholeDayTrajectoryData(userID, dateStr, daysGPSData)
+        // 2) ...and remove the outliers
+        val daysFullGPSTrajectory = daysGPSData
+          .map(e => TrackPoint(e.latitude, e.longitude, e.timestamp))
+        val outliers = detectOutliers(daysFullGPSTrajectory)
+        val daysCleanedGPSTrjectory: Seq[TrackPoint] = daysFullGPSTrajectory.diff(outliers)
+        assert(daysCleanedGPSTrjectory.size == (daysFullGPSTrajectory.size - outliers.size))
 
-          if (outliers.nonEmpty) {
-            logger.info(s"Detected and removed ${outliers.size} outlier(s)")
-            provRecorder.setNumDetectedOutliers(outliers.size)
-          }
-
-          // 3) Find start and stop usterpoints to extract (possibly multi-modal) trips
-          val trips: Seq[Trip] = extractTrips(daysCleanedGPSTrjectory, provRecorder)
-
-          if (trips.isEmpty) {
-            logger.info("No trips detected.")
-          } else {
-
-            // 4) Write out trip data for debugging purposes
-            storeExtractedTripsData(userID, dateStr, trips)
-
-            // 5) Get a user's accelerometer data of a whole day from the QROWD DB
-            val fullDayAccelerometerData: Seq[AccelerometerRecord] =
-              if (trips.nonEmpty) {
-                cassandraDB.getAccDataForUserAndDay(userID, config.date.format(formatter))
-              } else {
-                Seq.empty[AccelerometerRecord]
-              }
-
-            // 6) For each detected trip...
-            for ((trip, tripIdx) <- trips.zipWithIndex) {
-              // a) write trip information to SQLite database
-              val startAddress = getStreet(trip.start.long, trip.start.lat)
-              val stopAddress = getStreet(trip.end.long, trip.end.lat)
-
-
-              // get trip ID
-              val tripID = getLastIndex(SQLiteDB.Stages)
-
-              // b) extract corresponding accelerometer data from the whole day
-              //    accelerometer reading
-              val filteredAccelerometerData = fullDayAccelerometerData
-                .filter(
-                  e => e.timestamp.after(trip.start.timestamp)
-                    && e.timestamp.before(trip.end.timestamp))
-
-              // c) extract stages (i.e. segments within the respective trip which
-              //    describe a user's movement entirely performed with just one
-              //    certain means of transportation) based on the accelerometer data
-
-              // run mode detection
-              logger.info(s"Running mode detection for user $userID on trip " +
-                s"$tripIdx ${trip.start.timestamp.toLocalDateTime.toString} - " +
-                s"${trip.end.timestamp.toLocalDateTime.toString}")
-
-              predicter.outputDir = outputDirPath.resolve(dateStr).resolve(userID)
-
-              // We have to hand in provenance recorder since some information like
-              // the algorithm which generated the prediction are of no use here
-              // and thus discarded inside the predicter.predict( ) method.
-              val res = predicter.predict(
-                trip, filteredAccelerometerData, userID, tripIdx, Some(provRecorder))
-              // e.g. ArrayBuffer((walk,0.983933,2018-04-13 09:15:07.981))
-              val modesWProbAndTimeStamp: Seq[(String, Double, Timestamp)] = res._1
-              var jsonFilePath = res._2
-              assert(jsonFilePath.startsWith(outputDirPath.toString))
-              jsonFilePath = jsonFilePath.substring(outputDirPath.toString.size + 1)
-
-              val stages: List[Pilot4Stage] = buildStages(
-                userID, dateStr, trip, tripIdx, modesWProbAndTimeStamp,
-                config.writeDebugOutput, jsonFilePath)
-
-              if (!config.dryRun) {
-                stages.foreach(writeStageInfoWithJSONFilePath(_))
-              }
-              //
-              //          if (config.writeDebugOutput) {
-              //            stages.zipWithIndex.foreach(stageWIdx => {
-              //              val s = stageWIdx._1
-              //              val stageIdx = stageWIdx._2
-              ////              val mapMatched: Seq[TrackPoint] = mapMatching(s.trajectory, s.mode)
-              ////              val path = outputDirPath.resolve(dateStr).resolve(userID)
-              ////                .resolve(s"map_matched_stage_${tripIdx}_${stageIdx}")
-              ////              writeGeoJSON(path, NonClusterTrip(s.start, s.stop, mapMatched))
-              //            })
-              //          }
-            }
-          }
-        } else {
-          logger.info("No GPS data. Skipping...")
-          provRecorder.addError("No GPS data")
+        if (outliers.nonEmpty) {
+          logger.info(s"Detected and removed ${outliers.size} outlier(s)")
+          provRecorder.setNumDetectedOutliers(outliers.size)
         }
 
-        provRecorder.close
+        // 3) Find start and stop usterpoints to extract (possibly multi-modal) trips
+        val trips: Seq[Trip] = extractTrips(daysCleanedGPSTrjectory, provRecorder)
+
+        if (trips.isEmpty) {
+          logger.info("No trips detected.")
+        } else {
+
+          // 4) Write out trip data for debugging purposes
+          storeExtractedTripsData(userID, dateStr, trips)
+
+          // 5) Get a user's accelerometer data of a whole day from the QROWD DB
+          val fullDayAccelerometerData: Seq[AccelerometerRecord] =
+            if (trips.nonEmpty) {
+              cassandraDB.getAccDataForUserAndDay(userID, config.date.format(formatter))
+            } else {
+              Seq.empty[AccelerometerRecord]
+            }
+
+          // 6) For each detected trip...
+          for ((trip, tripIdx) <- trips.zipWithIndex) {
+            // a) write trip information to SQLite database
+            val startAddress = getStreet(trip.start.long, trip.start.lat)
+            val stopAddress = getStreet(trip.end.long, trip.end.lat)
+
+
+            // get trip ID
+            val tripID = getLastIndex(SQLiteDB.Stages)
+
+            // b) extract corresponding accelerometer data from the whole day
+            //    accelerometer reading
+            val filteredAccelerometerData = fullDayAccelerometerData
+              .filter(
+                e => e.timestamp.after(trip.start.timestamp)
+                  && e.timestamp.before(trip.end.timestamp))
+
+            // c) extract stages (i.e. segments within the respective trip which
+            //    describe a user's movement entirely performed with just one
+            //    certain means of transportation) based on the accelerometer data
+
+            // run mode detection
+            logger.info(s"Running mode detection for user $userID on trip " +
+              s"$tripIdx ${trip.start.timestamp.toLocalDateTime.toString} - " +
+              s"${trip.end.timestamp.toLocalDateTime.toString}")
+
+            predicter.outputDir = outputDirPath.resolve(dateStr).resolve(userID)
+
+            // We have to hand in provenance recorder since some information like
+            // the algorithm which generated the prediction are of no use here
+            // and thus discarded inside the predicter.predict( ) method.
+            val res = predicter.predict(
+              trip, filteredAccelerometerData, userID, tripIdx, Some(provRecorder))
+            // e.g. ArrayBuffer((walk,0.983933,2018-04-13 09:15:07.981))
+            val modesWProbAndTimeStamp: Seq[(String, Double, Timestamp)] = res._1
+            var jsonFilePath = res._2
+            assert(jsonFilePath.startsWith(outputDirPath.toString))
+            jsonFilePath = jsonFilePath.substring(outputDirPath.toString.size + 1)
+
+            val stages: List[Pilot4Stage] = buildStages(
+              userID, dateStr, trip, tripIdx, modesWProbAndTimeStamp,
+              config.writeDebugOutput, jsonFilePath)
+
+            if (!config.dryRun) {
+              stages.foreach(writeStageInfoWithJSONFilePath(_))
+            }
+            //
+            //          if (config.writeDebugOutput) {
+            //            stages.zipWithIndex.foreach(stageWIdx => {
+            //              val s = stageWIdx._1
+            //              val stageIdx = stageWIdx._2
+            ////              val mapMatched: Seq[TrackPoint] = mapMatching(s.trajectory, s.mode)
+            ////              val path = outputDirPath.resolve(dateStr).resolve(userID)
+            ////                .resolve(s"map_matched_stage_${tripIdx}_${stageIdx}")
+            ////              writeGeoJSON(path, NonClusterTrip(s.start, s.stop, mapMatched))
+            //            })
+            //          }
+          }
+        }
+      } else {
+        logger.info("No GPS data. Skipping...")
+        provRecorder.addError("No GPS data")
       }
+
+      provRecorder.close
     }
   }
 
