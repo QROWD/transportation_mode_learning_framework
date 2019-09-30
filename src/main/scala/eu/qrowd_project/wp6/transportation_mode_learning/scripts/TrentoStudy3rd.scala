@@ -20,17 +20,7 @@ import scala.util.Try
 import scala.collection.JavaConverters._
 
 
-case class TrentoStudyConfig(
-                              date: LocalDate = LocalDate.now(),
-                              writeDebugOutput: Boolean = false,
-                              tripSQLiteFilePath: String =
-                                Paths.get(System.getProperty("java.io.tmpdir"))
-                                  .resolve("trips.sqlite").toString,
-                              stageSQLiteFilePath: String =
-                                Paths.get(System.getProperty("java.io.tmpdir"))
-                                  .resolve("stages.sqlite").toString,
-                              dryRun: Boolean = false
-                            )
+
 
 /**
   * Script to run the 3rd Trento user study.

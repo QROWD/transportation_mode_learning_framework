@@ -1,8 +1,8 @@
 package eu.qrowd_project.wp6.transportation_mode_learning.util
 
-import java.io.{BufferedReader, File, InputStreamReader}
-import javax.json.{Json, JsonObject}
+import java.io.{BufferedReader, ByteArrayInputStream, File, InputStreamReader}
 
+import javax.json.{Json, JsonObject}
 import com.typesafe.config.ConfigFactory
 
 import scala.util.{Failure, Success, Try}
@@ -30,13 +30,24 @@ trait ReverseGeoCodingTomTom {
 
     val queryURI = String.format(uri, geoCoordStr)
     Try(
-      Http(queryURI).timeout(1200000, 1200000).execute(is => {
-        val reader = Json.createReader(is)
-        val json = reader.readObject()
-
-        json
-      }).body
+      Http(queryURI).timeout(1200000, 1200000).asString
     )
+    match {
+      case Success(res) =>
+        Try (
+          Json.createReader(new ByteArrayInputStream(res.body.getBytes())).readObject()
+        )
+        match {
+          case Success(json) =>
+            Success(json)
+          case Failure(e) =>
+            logger.error(s"There was an error processing the json data: << $queryURI >> : << ${res.body} >>")
+            Failure(e)
+        }
+      case Failure(e) =>
+        logger.error(s"There was an error processing the request: << $queryURI >>")
+        Failure(e)
+    }
   }
 
   def getStreet(long: Double, lat: Double): String = {

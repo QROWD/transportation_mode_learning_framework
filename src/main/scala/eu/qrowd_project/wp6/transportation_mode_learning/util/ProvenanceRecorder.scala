@@ -23,7 +23,7 @@ import play.api.libs.json.{Json, _}
   * - Custom vocabulary
   *
   */
-class ProvenanceRecorder(userID: String, date: String) {
+class ProvenanceRecorder(userID: String, date: String, userIDIndex1: Int = -1) {
   private val prefixStr = "http://qrowd-project.eu/prov#"
   private var tripDetectionSettings: Map[String, String] = Map.empty
   private var errors: List[String] = List.empty
@@ -32,6 +32,7 @@ class ProvenanceRecorder(userID: String, date: String) {
   private var predictions: Seq[Seq[PredictedStage]] = Seq.empty
   var tripsWereMergedInPostProcessing = false
   var writeRDFProvData = true
+  val userIDIndex = userIDIndex1
 
   /* ------- vocabulary start ------- */
   // classes
@@ -420,4 +421,5 @@ class ProvenanceRecorder(userID: String, date: String) {
 
     study_name
   }
+
 }

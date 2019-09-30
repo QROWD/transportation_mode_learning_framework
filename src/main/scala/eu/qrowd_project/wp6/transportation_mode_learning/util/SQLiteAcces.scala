@@ -26,6 +26,22 @@ class SQLiteAcces {
     tripConnection = DriverManager.getConnection(s"jdbc:sqlite:$tripSQLiteFilePath")
   }
 
+  def installSchema(): Unit = {
+    val schema =
+      """
+        |CREATE TABLE IF NOT EXISTS "citizen" ("citizen_id" VARCHAR(255) NOT NULL PRIMARY KEY);
+        |CREATE TABLE IF NOT EXISTS "trip" ("trip_id" INTEGER NOT NULL PRIMARY KEY, "citizen_id" VARCHAR(255) NOT NULL, "start_coordinate" VARCHAR(255) NOT NULL, "start_address" VARCHAR(255) NOT NULL, "stop_coordinate" VARCHAR(255) NOT NULL, "stop_address" VARCHAR(255) NOT NULL, "start_timestamp" DATETIME NOT NULL, "stop_timestamp" DATETIME NOT NULL, "transportation_mode" VARCHAR(255), "segment_confidence" REAL, "transportation_confidence" REAL, "path" TEXT, "json_file_path" TEXT, FOREIGN KEY ("citizen_id") REFERENCES "citizen" ("citizen_id"));
+        |CREATE INDEX IF NOT EXISTS "trip_citizen_id" ON "trip" ("citizen_id");
+        |CREATE TABLE IF NOT EXISTS "question" ("question_id" INTEGER NOT NULL PRIMARY KEY, "citizen_id" VARCHAR(255) NOT NULL, "task_id" VARCHAR(255) NOT NULL, "trip_id" INTEGER NOT NULL, "question_json" TEXT NOT NULL, "update_url" VARCHAR(255) NOT NULL, "answer_file_path" TEXT, "diff_file_path" TEXT, "answer_json" TEXT, "answer_code" VARCHAR(255), FOREIGN KEY ("citizen_id") REFERENCES "citizen" ("citizen_id"), FOREIGN KEY ("trip_id") REFERENCES "trip" ("trip_id"));
+        |CREATE INDEX IF NOT EXISTS "question_citizen_id" ON "question" ("citizen_id");
+        |CREATE INDEX IF NOT EXISTS "question_trip_id" ON "question" ("trip_id");
+        |CREATE TABLE IF NOT EXISTS "questionfailsafe" ("question_id" INTEGER NOT NULL PRIMARY KEY, "citizen_id" VARCHAR(255) NOT NULL, "task_id" VARCHAR(255) NOT NULL, "date" DATETIME NOT NULL, "file_paths" TEXT, "answer_json" TEXT, FOREIGN KEY ("citizen_id") REFERENCES "citizen" ("citizen_id"));
+        |CREATE INDEX IF NOT EXISTS "questionfailsafe_citizen_id" ON "questionfailsafe" ("citizen_id");
+      """.stripMargin.trim.split(";(\n|$)")
+
+    schema.map(z => stageConnection.createStatement().execute(z))
+  }
+
   def close(): Unit = {
     for (connection <- Seq(stageConnection, tripConnection)) {
       if (connection != null && !connection.isClosed) {
