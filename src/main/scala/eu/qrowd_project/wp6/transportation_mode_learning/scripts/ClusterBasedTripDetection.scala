@@ -9,7 +9,7 @@ import eu.qrowd_project.wp6.transportation_mode_learning.util.{BarefootJSONConve
   *
   * @author Lorenz Buehmann
   */
-class ClusterBasedTripDetection(
+class ClusterBasedTripDetection(val userIDindex: Int = -1,
                      val useMapMatching: Boolean = false,
                      val config: Config = ConfigFactory.defaultApplication()) extends TripDetection {
 
@@ -21,7 +21,7 @@ class ClusterBasedTripDetection(
   override def find(trajectory: Seq[TrackPoint]): Seq[ClusterTrip] = {
 
     if (trajectory.isEmpty) {
-      logger.warn("could not perform trip detection: empty trajectory")
+      logger.warn(s"${userIDindex} : could not perform trip detection: empty trajectory")
       return Seq()
     }
 
@@ -30,7 +30,7 @@ class ClusterBasedTripDetection(
 
     // compute stop point clusters
     val stopClusters = StopDetection(config.withOnlyPath("stop_detection")).find(points)
-    logger.info(s"#stop clusters:${stopClusters.size}")
+    logger.info(s"${userIDindex} : #stop clusters:${stopClusters.size}")
 
     // keep first and last point of each cluster
     val stopsStartEnd = stopClusters.map(c => (c.head, c.last, c))

@@ -13,7 +13,7 @@ import scala.collection.mutable
 class WindowDistanceBasedTripDetection(windowSize: Int, stepSize: Int,
                                        distanceThresholdInKm: Double,
                                        minNrOfSegments: Int,
-                                       noiseSegments: Int) extends TripDetection {
+                                       noiseSegments: Int, userIDindex: Int = -1) extends TripDetection {
   val logger = com.typesafe.scalalogging.Logger("WindowDistanceTripDetection")
   val secsPerDay: Int = 60 * 60 * 24
 
@@ -42,7 +42,7 @@ class WindowDistanceBasedTripDetection(windowSize: Int, stepSize: Int,
 
   override def find(trajectory: Seq[TrackPoint]): Seq[Trip] = {
     if(trajectory.isEmpty) {
-      logger.warn("could not perform trip detection: empty trajectory")
+      logger.warn(s"{$userIDindex} : could not perform trip detection: empty trajectory")
       return Seq()
     }
 

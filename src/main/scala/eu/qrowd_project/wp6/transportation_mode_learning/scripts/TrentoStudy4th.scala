@@ -50,14 +50,6 @@ object TrentoStudy4th extends SQLiteAcces with OutlierDetecting with JSONExporte
 
   private lazy val cassandraDB = new CassandraDBConnector
 
-  private val clusterBasedTripDetector = new ClusterBasedTripDetection()
-  private val windowDistanceBasedTripDetector = new WindowDistanceBasedTripDetection(
-    windowSize = appConfig.getInt("stop_detection.window_distance.window_size"),
-    stepSize = appConfig.getInt("stop_detection.window_distance.step_size"),
-    distanceThresholdInKm = appConfig.getDouble("stop_detection.window_distance.distance"),
-    minNrOfSegments = appConfig.getInt("stop_detection.window_distance.min_nr_of_segments"),
-    noiseSegments = appConfig.getInt("stop_detection.window_distance.noise_segments"))
-
   private lazy val pythonScriptPath =
     appConfig.getString("prediction_settings.python_script_path")
   private lazy val predictionWindowSize =
@@ -138,8 +130,21 @@ object TrentoStudy4th extends SQLiteAcces with OutlierDetecting with JSONExporte
   }
 
   private def extractTrips(trajectory: Seq[TrackPoint], provenanceRecorder: ProvenanceRecorder): Seq[Trip] = {
+    val clusterBasedTripDetector = new ClusterBasedTripDetection(provenanceRecorder.userIDIndex)
+    val windowDistanceBasedTripDetector = new WindowDistanceBasedTripDetection(
+      windowSize = appConfig.getInt("stop_detection.window_distance.window_size"),
+      stepSize = appConfig.getInt("stop_detection.window_distance.step_size"),
+      distanceThresholdInKm = appConfig.getDouble("stop_detection.window_distance.distance"),
+      minNrOfSegments = appConfig.getInt("stop_detection.window_distance.min_nr_of_segments"),
+      noiseSegments = appConfig.getInt("stop_detection.window_distance.noise_segments"),
+      userIDindex = provenanceRecorder.userIDIndex
+    )
+
     var tripDetector: TripDetection = null
     var fallbackTripDetector: TripDetection = null
+    logger.info(s"${provenanceRecorder.userIDIndex} : extract trips of ${trajectory.size} track points")
+    logger.debug(s"${provenanceRecorder.userIDIndex} : debug output")
+
 
     if (trajectory.size >= appConfig.getInt(
       "stop_detection.clustering.min_required_points")) {
@@ -174,8 +179,10 @@ object TrentoStudy4th extends SQLiteAcces with OutlierDetecting with JSONExporte
         }
       }
     })
+    logger.info(s"${provenanceRecorder.userIDIndex} : trajectories: ${trajectories.size}")
 
     trajectories.flatMap(trajectory => {
+      logger.info(s"${provenanceRecorder.userIDIndex} : using ${tripDetector.getClass.getSimpleName} on trajectory of size ${trajectory.size}")
       var trips: Seq[Trip] = tripDetector.find(trajectory)
 
       if (trips.isEmpty) {
