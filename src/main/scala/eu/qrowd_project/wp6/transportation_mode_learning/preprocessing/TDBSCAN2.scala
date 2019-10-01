@@ -91,6 +91,9 @@ class TDBSCAN2(
       } else{ // noise
         visited += p -> PointStatus.NOISE
       }
+      if (Thread.currentThread().isInterrupted) {
+        throw new InterruptedException
+      }
     }
 
     // merge clusters if timestamps overlap
@@ -113,21 +116,24 @@ class TDBSCAN2(
       clusters
         .filter(_.size >= minPts)
         .foldRight(Seq[Seq[TrackPoint]]()){
-      (left, rightClusters) => {
-        if(rightClusters.isEmpty) {
-          left +: rightClusters
-        } else {
-          val right = rightClusters.head
-          // merge if there is time overlap
-          if(left.last.timestamp.after(right.head.timestamp)) {
-            val mergedCluster = left ++ right
-            mergedCluster +: rightClusters.drop(1)
-          } else { // otherwise, prepend
-            left +: rightClusters
+          (left, rightClusters) => {
+            if (Thread.currentThread().isInterrupted) {
+              throw new InterruptedException
+            }
+            if(rightClusters.isEmpty) {
+              left +: rightClusters
+            } else {
+              val right = rightClusters.head
+              // merge if there is time overlap
+              if(left.last.timestamp.after(right.head.timestamp)) {
+                val mergedCluster = left ++ right
+                mergedCluster +: rightClusters.drop(1)
+              } else { // otherwise, prepend
+                left +: rightClusters
+              }
+            }
           }
         }
-      }
-    }
     logger.info(s"got ${mergedClusters.size} clusters after time overlap merging.")
 
 
@@ -206,6 +212,9 @@ class TDBSCAN2(
         if(d <= ceps && d <= eps) {
           neighbors :+= p_other
         }
+        if (Thread.currentThread().isInterrupted) {
+          throw new InterruptedException
+        }
       })
 
     neighbors
@@ -246,6 +255,9 @@ class TDBSCAN2(
       }
 
       index += 1
+      if (Thread.currentThread().isInterrupted) {
+        throw new InterruptedException
+      }
     }
 //    neighbors.foreach(n => {
 //      // mark as visited
