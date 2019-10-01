@@ -1,9 +1,17 @@
 package eu.qrowd_project.wp6.transportation_mode_learning.scripts
 
-import java.io.File
+import java.io.{File, PrintWriter}
+import java.sql.Timestamp
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.util.UUID
 
 import eu.qrowd_project.wp6.transportation_mode_learning.preprocessing.{TDBSCAN, TDBSCAN2}
 import eu.qrowd_project.wp6.transportation_mode_learning.util.TrackPoint
+import org.joda.time.format.DateTimeParser
+
+import scala.io.Source
+import scala.util.matching.Regex
 
 /**
   * Determine stops given a GPS trajectory, i.e. a sequence of GPS points tagged with a timestamp.
@@ -60,7 +68,19 @@ object StopDetection {
   def apply(config: com.typesafe.config.Config): StopDetection = new StopDetection(config)
 
   def main(args: Array[String]): Unit = {
+    val dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS")
+    val points : Seq[TrackPoint] = Source.fromFile(args(0)).getLines().map(line => {
+      //         2019-09-28 00:00:06.549, (46.12807, 11.11958)
+      val ret: Option[Regex.Match] = "(\\S+ \\S+), \\((\\S+), (\\S+)\\)".r.findFirstMatchIn(line)
 
+      if (ret.isEmpty) {
+        null
+      } else {
+        val v = ret.get
+        new TrackPoint(v.group(2).toFloat, v.group(3).toFloat, Timestamp.valueOf(LocalDateTime.parse(v.group(1).padTo(23, '0'), dtf)) )
+      }
+    }).filterNot(_ == null).toSeq
+    StopDetection().find(points)
   }
 
   case class Config(in: File = new File("."),
