@@ -43,6 +43,9 @@ class ClusterBasedTripDetection(val userIDindex: Int = -1,
         .sliding(2)
         .filter(_.size == 2)
         .map(e => {
+          if (Thread.currentThread().isInterrupted) {
+            throw new InterruptedException
+          }
           // last point of first stop
           val begin = e(0)._2 // firstStop._2
 
