@@ -570,7 +570,7 @@ object TrentoStudy4th extends SQLiteAcces with OutlierDetecting with JSONExporte
               }}
             )
             val res = try {
-              f.get(15, TimeUnit.MINUTES)
+              f.get(appConfig.getLong("stop_detection.timeout"), TimeUnit.MINUTES)
             }
             catch {
               case ex: TimeoutException => {
