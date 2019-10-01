@@ -16,5 +16,6 @@ case class TrentoStudyConfig(
                               userIdsOnly: Boolean = false,
                               usersFromCassandra: Boolean = false,
                               alwaysOSM: Boolean = false,
-                              threads: Int = 1
+                              threads: Int = 1,
+                              singleUserID: String = null
                             ) {}

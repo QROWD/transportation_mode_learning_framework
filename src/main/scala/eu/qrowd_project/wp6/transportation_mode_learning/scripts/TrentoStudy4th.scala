@@ -14,6 +14,9 @@ import eu.qrowd_project.wp6.transportation_mode_learning.util.{AccelerometerReco
 import eu.qrowd_project.wp6.transportation_mode_learning.{Pilot4Stage, Prediction}
 import scopt.Read
 
+import scala.concurrent.CancellationException
+import util.control.Breaks._
+
 /**
   * Object to run the 4th Trento user study.
   *
@@ -76,6 +79,12 @@ object TrentoStudy4th extends SQLiteAcces with OutlierDetecting with JSONExporte
       .action((value, config) => config.copy(date = value))
       .text("Date to be processed (yyyyMMdd), e.g. 20180330 . If no date is " +
         "provided, we'll use the current date.")
+
+    opt[String]('u',"user")
+      .optional()
+      .valueName("userID")
+      .action((value, config) => config.copy(singleUserID = value))
+      .text("Only test a single user")
 
     opt[Unit](name = "debug")
       .optional()
@@ -182,6 +191,9 @@ object TrentoStudy4th extends SQLiteAcces with OutlierDetecting with JSONExporte
     logger.info(s"${provenanceRecorder.userIDIndex} : trajectories: ${trajectories.size}")
 
     trajectories.flatMap(trajectory => {
+      if (Thread.currentThread().isInterrupted) {
+        throw new InterruptedException
+      }
       logger.info(s"${provenanceRecorder.userIDIndex} : using ${tripDetector.getClass.getSimpleName} on trajectory of size ${trajectory.size}")
       var trips: Seq[Trip] = tripDetector.find(trajectory)
 
@@ -519,7 +531,9 @@ object TrentoStudy4th extends SQLiteAcces with OutlierDetecting with JSONExporte
 
     // 1) Check which users were already processed for the given day
     //val allUsers: List[KeyspaceMetadata] = cassandraDB.getAllUsers()
-    val allUsers: Set[String] = if (cmdConfig.usersFromCassandra) {
+    val allUsers: Set[String] = if (cmdConfig.singleUserID != null) {
+      Set(cmdConfig.singleUserID)
+    } else if (cmdConfig.usersFromCassandra) {
       cassandraDB.getAllUsers().map(_.getName).toSet
     } else {
       getAllUsers()
@@ -546,7 +560,7 @@ object TrentoStudy4th extends SQLiteAcces with OutlierDetecting with JSONExporte
       val pool = Executors.newFixedThreadPool(cmdConfig.threads)
       var futures: Array[Future[_]] = Array()
       val userIndex = gpsData.zipWithIndex.map( e => e._1._1 -> e._2 ).toMap
-      for ((userID, daysGPSData) <- gpsData) {
+      breakable { for ((userID, daysGPSData) <- gpsData) {
         val idx = userIndex(userID)
         val ret: Future[_] = pool.submit(
           new Runnable { override def run(): Unit = {
@@ -568,15 +582,24 @@ object TrentoStudy4th extends SQLiteAcces with OutlierDetecting with JSONExporte
                 //ex
               }
             }
+            try {
+              f.get()
+            } catch {
+              case ex: CancellationException => {}
+            }
+
+            logger.info(s"$idx : closing pool")
             es.shutdown()
           }}
       )
       futures :+= ret
-      }
+      } }
       while (futures.count(!_.isDone) > 0) {
         logger.info(s" ...... ${futures.count(_.isDone)} / ${futures.count(_=>true)} tasks ..... ")
         Thread.sleep(60 * 1000)
       }
+      logger.info("joining thread pool")
+      futures.map(_.get())
       pool.shutdown()
     }
   }
