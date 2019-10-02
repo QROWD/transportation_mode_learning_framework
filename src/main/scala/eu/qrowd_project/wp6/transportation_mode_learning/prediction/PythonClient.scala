@@ -40,7 +40,6 @@ case class PredictedStage(
   *
   */
 class PythonClient(baseDir: String, scriptPath: String, modelPath: String) {
-  private val resultFilePath = Paths.get(baseDir).resolve("out.csv")
   private val python: String =
     ConfigFactory.load().getString("prediction_settings.python_interpreter")
 
@@ -58,6 +57,7 @@ class PythonClient(baseDir: String, scriptPath: String, modelPath: String) {
     // write data as CSV to disk
     val inputFile = serializeInput(accelerometerData, id)
 
+    val resultFilePath = Paths.get(baseDir).resolve(id + "_out.csv")
     val command = s"$python $scriptPath --predict --model_dir $modelPath " +
       s"--output_file ${resultFilePath.toFile.getAbsolutePath} " +
       s"${inputFile.toFile.getAbsolutePath} "
@@ -70,7 +70,7 @@ class PythonClient(baseDir: String, scriptPath: String, modelPath: String) {
     sys.process.Process(command, new java.io.File(baseDir)).!
 
     // read output from CSV to internal list
-    val stagePredictions: Seq[PredictedStage] = readOutput()
+    val stagePredictions: Seq[PredictedStage] = readOutput(resultFilePath)
 
     // post-processing/clean up
     if (stagePredictions.nonEmpty &&
@@ -118,7 +118,7 @@ class PythonClient(baseDir: String, scriptPath: String, modelPath: String) {
     Files.write(inputFile, content.getBytes("UTF-8"))
   }
 
-  def readOutput(): Seq[PredictedStage] = {
+  def readOutput(resultFilePath:Path): Seq[PredictedStage] = {
     val outputCSV = resultFilePath
 
     // read all non-empty lines
