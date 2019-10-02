@@ -4,6 +4,8 @@ import com.typesafe.config.{Config, ConfigFactory}
 import eu.qrowd_project.wp6.transportation_mode_learning.mapmatching.BarefootMapMatcherSocket
 import eu.qrowd_project.wp6.transportation_mode_learning.util.{BarefootJSONConverter, HaversineDistance, POIRetrieval, TrackPoint}
 
+import collection.JavaConverters._
+
 /**
   * Basically, uses the stop point detection to perform trip detection given a GPS trajectory.
   *

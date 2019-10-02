@@ -4,14 +4,17 @@ import java.io.{File, PrintWriter}
 import java.sql.Timestamp
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.util
 import java.util.UUID
 
-import eu.qrowd_project.wp6.transportation_mode_learning.preprocessing.{TDBSCAN, TDBSCAN2}
+import eu.qrowd_project.wp6.transportation_mode_learning.preprocessing.{STDBSCAN, TDBSCAN, TDBSCAN2}
 import eu.qrowd_project.wp6.transportation_mode_learning.util.TrackPoint
+import org.apache.commons.math3.ml.clustering.Cluster
 import org.joda.time.format.DateTimeParser
 
 import scala.io.Source
 import scala.util.matching.Regex
+import collection.JavaConverters._
 
 /**
   * Determine stops given a GPS trajectory, i.e. a sequence of GPS points tagged with a timestamp.
@@ -21,7 +24,7 @@ import scala.util.matching.Regex
   * @param clusterer the cluster computing algorithm
   * @author Lorenz Buehmann
   */
-class StopDetection(val clusterer: TDBSCAN2) {
+class StopDetection(val clusterer: Clusterer) {
 
   /**
     * Determine stops given a GPS trajectory, i.e. a sequence of GPS points tagged with a timestamp.
@@ -31,9 +34,15 @@ class StopDetection(val clusterer: TDBSCAN2) {
     * @param minPts the minimum number of neighboring points to identify a core point
     */
   def this(ceps: Double = 0.3,
+           teps: Double = 300,
            eps: Double = 0.1,
-           minPts: Int = 80) {
-    this(new TDBSCAN2(ceps, eps, minPts))
+           minPts: Int = 80,
+           mode: String = "stdbscan") {
+    this(if (mode == "stdbscan") {
+      new STDBSCAN(eps, teps, minPts)
+    } else {
+      new TDBSCAN2(ceps, eps, minPts)
+    })
   }
 
   /**
@@ -43,7 +52,11 @@ class StopDetection(val clusterer: TDBSCAN2) {
     *               `stop_detection.clustering.tdbscan`
     */
   def this(config: com.typesafe.config.Config) {
-    this(new TDBSCAN2(config.getConfig("stop_detection.clustering.tdbscan")))
+    this(if (config.getString("stop_detection.clustering.mode") == "stdbscan") {
+      new STDBSCAN(config.getConfig("stop_detection.clustering.stdbscan"))
+    } else {
+      new TDBSCAN2(config.getConfig("stop_detection.clustering.tdbscan"))
+    })
   }
 
   /**
@@ -63,7 +76,9 @@ class StopDetection(val clusterer: TDBSCAN2) {
 
 object StopDetection {
 
-  def apply(ceps: Double = 0.3, eps: Double = 0.1, minPts: Int = 80): StopDetection = new StopDetection(ceps, eps, minPts)
+
+  def apply(ceps: Double = 0.3,            teps: Double = 300,
+            eps: Double = 0.1, minPts: Int = 80, mode: String = "stdbscan"): StopDetection = new StopDetection(ceps, teps, eps, minPts, mode)
 
   def apply(config: com.typesafe.config.Config): StopDetection = new StopDetection(config)
 
@@ -80,7 +95,8 @@ object StopDetection {
         new TrackPoint(v.group(2).toFloat, v.group(3).toFloat, Timestamp.valueOf(LocalDateTime.parse(v.group(1).padTo(23, '0'), dtf)) )
       }
     }).filterNot(_ == null).toSeq
-    StopDetection().find(points)
+    val seq = StopDetection().find(points)
+    println(seq)
   }
 
   case class Config(in: File = new File("."),

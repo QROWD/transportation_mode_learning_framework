@@ -1,6 +1,7 @@
 package eu.qrowd_project.wp6.transportation_mode_learning.util
 
 import java.io.{BufferedReader, ByteArrayInputStream, File, InputStreamReader}
+import java.util.concurrent.TimeUnit
 
 import javax.json.{Json, JsonObject}
 import com.typesafe.config.ConfigFactory
@@ -29,6 +30,7 @@ trait ReverseGeoCodingTomTom {
     val geoCoordStr = s"$lat,$long"
 
     val queryURI = String.format(uri, geoCoordStr)
+    Thread.sleep(TimeUnit.SECONDS.toMillis(1))
     Try(
       Http(queryURI).timeout(1200000, 1200000).asString
     )

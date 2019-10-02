@@ -1,11 +1,15 @@
 package eu.qrowd_project.wp6.transportation_mode_learning.preprocessing
 
 import java.sql.Timestamp
+import java.util
+
+import eu.qrowd_project.wp6.transportation_mode_learning.scripts.Clusterer
 
 import scala.collection.mutable
-
 import eu.qrowd_project.wp6.transportation_mode_learning.util.{HaversineDistance, TrackPoint}
-import org.apache.commons.math3.ml.clustering.Clusterable
+import org.apache.commons.math3.ml.clustering.{Cluster, Clusterable}
+
+import collection.JavaConverters._
 
 /**
   * An implementation of T-DBSCAN for clustering spatio-temporal data.
@@ -20,7 +24,7 @@ class TDBSCAN2(
                val ceps: Double,
                val eps: Double,
                val minPts: Int,
-               val performDistanceMerge: Boolean = false) {
+               val performDistanceMerge: Boolean = false) extends Clusterer {
 
   private var _distanceLookupCounter: Int = 0
 
@@ -68,7 +72,7 @@ class TDBSCAN2(
 
       // get neighbors
       val neighbors = getNeighbors(p, points)
-//      println(s"#neighbors:${neighbors.size}")
+      println(s"#neighbors:${neighbors.size}")
 
       // update max ID
       maxId = p.timestamp
@@ -78,6 +82,7 @@ class TDBSCAN2(
         c += 1
 
         logger.debug("new cluster")
+        println("new cluster")
 
         // create new cluster
         val cluster = mutable.ListBuffer[TrackPoint]()
@@ -196,8 +201,8 @@ class TDBSCAN2(
     * @param points all points
     * @return the neighborhood
     */
-  private def getNeighbors(p: TrackPoint, points: Seq[TrackPoint]): Seq[TrackPoint] = {
-//    println(s"computing neighbors for $p ...")
+  private def  getNeighbors(p: TrackPoint, points: Seq[TrackPoint]): Seq[TrackPoint] = {
+    println(s"computing neighbors for $p ...")
     var neighbors = Seq[TrackPoint]()
 
 //    points.take(10).foreach(p => println(s"Point: $p"))
@@ -224,6 +229,7 @@ class TDBSCAN2(
                             maxId: Timestamp, visited: mutable.Map[Clusterable, PointStatus])
   : (Seq[TrackPoint], Timestamp) = {
     logger.debug(s"expanding cluster $maxId ...")
+    println(s"expanding cluster $maxId ...")
 
     cluster += p
     visited += p -> PointStatus.PART_OF_CLUSTER
