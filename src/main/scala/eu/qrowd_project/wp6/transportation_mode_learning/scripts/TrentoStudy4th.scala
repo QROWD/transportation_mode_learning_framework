@@ -49,7 +49,7 @@ object TrentoStudy4th extends SQLiteAcces with OutlierDetecting with JSONExporte
 
   private val formatter = DateTimeFormatter.ofPattern("yyyyMMdd")
   private val outputDirPath =
-    Paths.get(appConfig.getString("general_stettings.output_data_dir"))
+    Paths.get(appConfig.getString("general_settings.output_data_dir"))
 
   private lazy val cassandraDB = new CassandraDBConnector
 
