@@ -29,9 +29,10 @@ class CassandraDBConnector(var userIds: Seq[String] = Seq()) {
 
   // FIXME: copied over from LocationEventRecord
   //                                                           20180530073346961
-  private val dateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmssnnnnnnnnn")
+  // this DateTimeFormatter bug was fixed somewhere in Java 9
+  private val dateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS")
   def asTimestamp(timestamp :String): Timestamp =
-      Timestamp.valueOf(LocalDateTime.parse(timestamp + "000000", dateTimeFormatter))
+      Timestamp.valueOf(LocalDateTime.parse(timestamp, dateTimeFormatter))
 //    Timestamp.valueOf(LocalDateTime.parse(timestamp.substring(0, 14), dateTimeFormatter))
 
   lazy val cluster: Cluster = {

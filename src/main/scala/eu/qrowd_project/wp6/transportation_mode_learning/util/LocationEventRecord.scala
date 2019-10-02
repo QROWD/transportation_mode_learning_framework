@@ -64,6 +64,7 @@ object LocationEventRecord {
     LocationEventRecord(day, timestamp, accuracy, bearing, latitude, longitude, altitude, provider, speed)
   }
 
+  // this DateTimeFormatter bug was fixed somewhere in Java 9
   private val dateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS")
   private def asTimestamp(timestamp :String) =
     Timestamp.valueOf(LocalDateTime.parse(timestamp, dateTimeFormatter))
