@@ -6,6 +6,7 @@ import eu.qrowd_project.wp6.transportation_mode_learning.scripts.Clusterer
 import eu.qrowd_project.wp6.transportation_mode_learning.util.{HaversineDistance, TrackPoint}
 import org.apache.commons.math3.ml.clustering.{Clusterable, DBSCANClusterer}
 import org.apache.commons.math3.ml.distance.DistanceMeasure
+import org.apache.spark.sql.execution.streaming.FileStreamSource.Timestamp
 
 import collection.JavaConverters._
 
@@ -48,6 +49,6 @@ class STDBSCAN(val eps: Double, val tEps:Double, val minPts: Int) extends DBSCAN
 
   override def cluster(points: Seq[TrackPoint]): Seq[Seq[TrackPoint]] = {
     val c = cluster(points.asJava)
-    c.asScala.map(l => l.getPoints.asScala)
+    c.asScala.map(l => l.getPoints.asScala.sortWith((p1,p2) => p1 < p2))
   }
 }
