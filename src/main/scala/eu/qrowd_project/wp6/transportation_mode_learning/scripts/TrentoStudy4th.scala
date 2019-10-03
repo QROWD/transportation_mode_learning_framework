@@ -58,10 +58,6 @@ object TrentoStudy4th extends SQLiteAcces with OutlierDetecting with JSONExporte
   private lazy val predictionWindowSize =
     appConfig.getInt("prediction_settings.window_size")
 
-  private lazy val predicter = new Prediction(pythonScriptPath,
-    s"$pythonScriptPath/run/trentostudy4.py",
-    s"$pythonScriptPath/models/")
-
   private lazy val maxTimeGapForGPSInSecs =
     appConfig.getInt("stop_detection.max_time_gap") * 60
 
@@ -608,6 +604,10 @@ object TrentoStudy4th extends SQLiteAcces with OutlierDetecting with JSONExporte
     if (userID == "c7ce1b623cd29244de2d17957e8f485181cbf7a1") {
       logger.warn(s"Skipping user $userID")
     } else {
+      val predicter = new Prediction(pythonScriptPath,
+        s"$pythonScriptPath/run/trentostudy4.py",
+        s"$pythonScriptPath/models/")
+
       val provRecorder = new ProvenanceRecorder(userID, dateStr, idx)
 
       logger.info(s"$idx : Perfoming mode detection for user $userID")
