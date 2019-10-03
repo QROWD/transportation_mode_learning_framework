@@ -202,7 +202,7 @@ class TDBSCAN2(
     * @return the neighborhood
     */
   private def  getNeighbors(p: TrackPoint, points: Seq[TrackPoint]): Seq[TrackPoint] = {
-    println(s"computing neighbors for $p ...")
+    //println(s"computing neighbors for $p ...")
     var neighbors = Seq[TrackPoint]()
 
 //    points.take(10).foreach(p => println(s"Point: $p"))
