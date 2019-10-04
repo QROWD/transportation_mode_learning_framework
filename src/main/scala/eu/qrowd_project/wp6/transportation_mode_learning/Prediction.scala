@@ -64,18 +64,30 @@ class Prediction(baseDir: String, scriptPath: String, modelPath: String) {
               tripIdx: Integer,
               provenanceRecorder: Option[ProvenanceRecorder] = None): (Seq[(String, Double, Timestamp)], String) = {
 
-    var predictedStages: Seq[PredictedStage] =
-      pythonClient.predict(accRecords.map(r => (r.x, r.y, r.z, r.timestamp)),
-        id = s"${user}_trip$tripIdx")
+    var predictedStages: Seq[PredictedStage] = null
 
-    // Fallback in case there was no or not enough accelerometer data
-    if (predictedStages.isEmpty) {
+    if (accRecords.isEmpty) {
+      // Fallback in case there was no or not enough accelerometer data
       predictedStages = Seq(PredictedStage(
         "car",
         trip.start.timestamp,
         trip.end.timestamp,
         0.1,
         "guessed"))
+    } else {
+      predictedStages =
+        pythonClient.predict(accRecords.map(r => (r.x, r.y, r.z, r.timestamp)),
+          id = s"${user}_trip$tripIdx")
+
+      // Fallback in case there was no or not enough accelerometer data
+      if (predictedStages.isEmpty) {
+        predictedStages = Seq(PredictedStage(
+          "car",
+          trip.start.timestamp,
+          trip.end.timestamp,
+          0.1,
+          "guessed"))
+      }
     }
 
     // Store the raw GeoJSON points and lines
